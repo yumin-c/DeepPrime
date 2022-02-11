@@ -1,7 +1,3 @@
-
-# Created by https://www.toptal.com/developers/gitignore/api/python,jupyternotebooks,macos,visualstudiocode,linux
-# Edit at https://www.toptal.com/developers/gitignore?templates=python,jupyternotebooks,macos,visualstudiocode,linux
-
 ### JupyterNotebooks ###
 # gitignore template for Jupyter Notebooks
 # website: http://jupyter.org/
@@ -231,6 +227,3 @@ cython_debug/
 .ionide
 
 # Support for Project snippet scope
-
-# End of https://www.toptal.com/developers/gitignore/api/python,jupyternotebooks,macos,visualstudiocode,linux
-
