@@ -119,7 +119,7 @@ num_layers = 1
 num_epochs = 100
 n_models = 5
 
-plot = True
+plot = False
 
 train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
@@ -217,7 +217,7 @@ if plot:
   ax.legend(loc=4)
   ax.set_title("Train/Test MSE")
   # ax.set_yticks(range(0.0, 1.0, 0.02))
-  plt.savefig('Loss_{}_{}_{}_{}_{}.jpg'.format(random_seed, learning_rate, hidden_size, num_layers, num_epochs))
+  plt.savefig('Loss.jpg')
 
   plt.close()
 
@@ -228,4 +228,4 @@ if plot:
   )
   plt.title("Test Spearman Score")
   plt.ylim(0.5, 0.9)
-  plt.savefig('Spearman_{}_{}_{}_{}_{}.jpg'.format(random_seed, learning_rate, hidden_size, num_layers, num_epochs))
+  plt.savefig('Spearman.jpg')
