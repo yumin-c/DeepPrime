@@ -62,23 +62,19 @@ class ConvLSTM(nn.Module):
 
     self.c = nn.Sequential(
         nn.Conv1d(in_channels=4, out_channels=64, kernel_size=3, stride=1, padding=1, padding_mode='zeros'),
-        # nn.BatchNorm1d(num_features=64),
         nn.GELU(),
         nn.AvgPool1d(kernel_size=2, stride=2),
         nn.Conv1d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, padding_mode='zeros'),
-        # nn.BatchNorm1d(num_features=64),
         nn.GELU(),
-        nn.AvgPool1d(kernel_size=2, stride=2),
+        nn.AvgPool1d(kernel_size=3, stride=3),
         nn.Conv1d(in_channels=64, out_channels=16, kernel_size=3, stride=1, padding=1, padding_mode='zeros'),
-        # nn.BatchNorm1d(num_features=16),
         nn.GELU(),
     )
-    # self.r = nn.LSTM(16, hidden_size, num_layers, batch_first=True, bidirectional=True)
     self.r = nn.GRU(16, hidden_size, num_layers, batch_first=True, bidirectional=True)
     self.d = nn.Linear(2 * hidden_size, 1, bias=True)
 
   def forward(self, x):
-    x = self.c(x) # [128, 16, 30]
+    x = self.c(x)
     x, _ = self.r(torch.transpose(x, 1, 2))
     x = self.d(x[:, -1, :])
     
@@ -120,7 +116,7 @@ learning_rate = 5e-4
 weight_decay = 1e-2
 hidden_size = 128
 num_layers = 1
-num_epochs = 80
+num_epochs = 100
 n_models = 5
 
 plot = True
@@ -149,7 +145,7 @@ for m in range(n_models):
 
   criterion = nn.MSELoss()
   optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-  scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=40, T_mult=1, eta_min=1e-7)
+  scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=1, eta_min=1e-7)
 
   names = ['Train loss', 'Test loss', 'Spearman score']
   values = {}
@@ -191,7 +187,7 @@ for m in range(n_models):
     values[names[1]].append(valid_epoch_loss)
     values[names[2]].append(score)
 
-    print('[TRY {:02}] [{:02}/{:02}] : {:.4f} | {:.4f} | {:.4f}'.format(m, epoch, num_epochs-1, train_epoch_loss, valid_epoch_loss, score))
+    print('[M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(m + 1, n_models, epoch + 1, num_epochs, train_epoch_loss, valid_epoch_loss, score))
 
 
   preds[m] = pred.squeeze().detach().cpu().numpy()
@@ -231,5 +227,5 @@ if plot:
     label=names[2],
   )
   plt.title("Test Spearman Score")
-  plt.ylim(0, 1)
+  plt.ylim(0.5, 0.9)
   plt.savefig('Spearman_{}_{}_{}_{}_{}.jpg'.format(random_seed, learning_rate, hidden_size, num_layers, num_epochs))
