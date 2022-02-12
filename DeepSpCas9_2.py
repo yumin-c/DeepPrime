@@ -64,23 +64,22 @@ class ConvLSTM(nn.Module):
         nn.Conv1d(in_channels=4, out_channels=64, kernel_size=3, stride=1, padding=1, padding_mode='zeros'),
         # nn.BatchNorm1d(num_features=64),
         nn.GELU(),
+        nn.AvgPool1d(kernel_size=2, stride=2),
         nn.Conv1d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1, padding_mode='zeros'),
         # nn.BatchNorm1d(num_features=64),
         nn.GELU(),
-        nn.MaxPool1d(kernel_size=2, stride=2),
+        nn.AvgPool1d(kernel_size=2, stride=2),
         nn.Conv1d(in_channels=64, out_channels=16, kernel_size=3, stride=1, padding=1, padding_mode='zeros'),
         # nn.BatchNorm1d(num_features=16),
         nn.GELU(),
     )
-    self.l = nn.LSTM(16, hidden_size, num_layers, batch_first=True, bidirectional=True)
+    # self.r = nn.LSTM(16, hidden_size, num_layers, batch_first=True, bidirectional=True)
+    self.r = nn.GRU(16, hidden_size, num_layers, batch_first=True, bidirectional=True)
     self.d = nn.Linear(2 * hidden_size, 1, bias=True)
 
   def forward(self, x):
-    h0 = torch.zeros(2 * self.num_layers, x.size(0), self.hidden_size)
-    c0 = torch.zeros(2 * self.num_layers, x.size(0), self.hidden_size)
-
     x = self.c(x) # [128, 16, 30]
-    x, _ = self.l(torch.transpose(x, 1, 2))
+    x, _ = self.r(torch.transpose(x, 1, 2))
     x = self.d(x[:, -1, :])
     
     return x
@@ -117,11 +116,14 @@ train_set = Cas9Dataset(x_train, y_train)
 # -------------------------------- Hyperparameters -------------------------------- #
 
 batch_size = 128
-learning_rate = 2e-4
+learning_rate = 5e-4
+weight_decay = 1e-2
 hidden_size = 128
 num_layers = 1
-num_epochs = 100
-n_models = 20
+num_epochs = 80
+n_models = 5
+
+plot = True
 
 train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
@@ -146,12 +148,15 @@ for m in range(n_models):
   model = ConvLSTM(hidden_size=hidden_size, num_layers=num_layers).to(device)
 
   criterion = nn.MSELoss()
-  optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+  optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+  scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=40, T_mult=1, eta_min=1e-7)
 
   names = ['Train loss', 'Test loss', 'Spearman score']
   values = {}
   for scheme in names:
     values[scheme] = []
+
+  n_iters = len(train_loader)
 
   for epoch in range(num_epochs):
     train_epoch_loss, valid_epoch_loss = [], []
@@ -168,6 +173,7 @@ for m in range(n_models):
       optimizer.zero_grad()
       loss.backward()
       optimizer.step()
+      scheduler.step(epoch + i / n_iters)
 
       train_epoch_loss.append(x.size(0) * loss.detach().cpu().numpy())
       train_count += x.size(0)
@@ -192,36 +198,38 @@ for m in range(n_models):
 
 # -------------------------------- Test -------------------------------- #
 
-# preds = np.mean(preds, axis=0) * 100 + 40
-# y_valid = y_valid.cpu().numpy() * 100 + 40
+preds = np.mean(preds, axis=0) * 100 + 40
+y_valid = y_valid.cpu().numpy() * 100 + 40
 
 print(scipy.stats.spearmanr(preds, y_valid))
 
 
 # -------------------------------- Plotting -------------------------------- #
 
-# _, ax = plt.subplots(figsize=(6, 4))
+if plot:
 
-# for scheme in values:
-#   if scheme != names[2]:
-#     ax.plot(
-#         [n for n in range(len(values[scheme]))],
-#         [p for p in values[scheme]],
-#         label=scheme,
-#     )
+  _, ax = plt.subplots(figsize=(6, 4))
 
-# ax.legend(loc=4)
-# ax.set_title("Train/Test MSE")
-# # ax.set_yticks(range(0.0, 1.0, 0.02))
-# plt.savefig('Loss_{}_{}_{}_{}_{}.jpg'.format(random_seed, learning_rate, hidden_size, num_layers, num_epochs))
+  for scheme in values:
+    if scheme != names[2]:
+      ax.plot(
+          [n for n in range(len(values[scheme]))],
+          [p for p in values[scheme]],
+          label=scheme,
+      )
 
-# plt.close()
+  ax.legend(loc=4)
+  ax.set_title("Train/Test MSE")
+  # ax.set_yticks(range(0.0, 1.0, 0.02))
+  plt.savefig('Loss_{}_{}_{}_{}_{}.jpg'.format(random_seed, learning_rate, hidden_size, num_layers, num_epochs))
 
-# plt.plot(
-#   [n for n in range(len(values[names[2]]))],
-#   [p for p in values[names[2]]],
-#   label=names[2],
-# )
-# plt.title("Test Spearman Score")
-# plt.ylim(0, 1)
-# plt.savefig('Spearman_{}_{}_{}_{}_{}.jpg'.format(random_seed, learning_rate, hidden_size, num_layers, num_epochs))
+  plt.close()
+
+  plt.plot(
+    [n for n in range(len(values[names[2]]))],
+    [p for p in values[names[2]]],
+    label=names[2],
+  )
+  plt.title("Test Spearman Score")
+  plt.ylim(0, 1)
+  plt.savefig('Spearman_{}_{}_{}_{}_{}.jpg'.format(random_seed, learning_rate, hidden_size, num_layers, num_epochs))
