@@ -15,23 +15,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-
-# PARAMS
-
-batch_size = 128
-learning_rate = 5e-4
-weight_decay = 1e-2
-hidden_size = 128
-n_layers = 1
-n_epochs = 100
-n_models = 20
-
-plot = False
-
 class Cas9Dataset(Dataset):
 
     def __init__(self, x, y):
@@ -114,6 +97,26 @@ def preprocess_seq(data):
     return DATA_X
 
 
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+
+# PARAMS
+
+batch_size = 128
+learning_rate = 5e-4
+weight_decay = 1e-2
+hidden_size = 128
+n_layers = 1
+n_epochs = 100
+n_models = 20
+
+plot = False
+
+
+# PREPROCESSING
+
 data_train = pd.read_excel('aax9249_table_s1.xlsx',
                            sheet_name=0).iloc[:, [1, 8]]
 data_valid = pd.read_excel('aax9249_table_s1.xlsx',
@@ -144,6 +147,8 @@ train_loader = DataLoader(
 
 preds = np.zeros((n_models, y_valid.size(0))) # PREDICTIONS FOR ENSEMBLE
 
+
+# TRAINING & VALIDATION
 
 for m in range(n_models):
 
@@ -215,6 +220,8 @@ y_valid = y_valid.cpu().numpy() * 100 + 40
 
 print(scipy.stats.spearmanr(preds, y_valid))
 
+
+# PLOTTING 
 
 if plot:
   _, ax = plt.subplots(figsize=(6, 4))
