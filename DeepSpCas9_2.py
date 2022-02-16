@@ -14,6 +14,9 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import wandb
+
+wandb.init(project="DeepSpCas9 project", entity="yumin-c")
 
 class Cas9Dataset(Dataset):
 
@@ -107,12 +110,14 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 batch_size = 128
 learning_rate = 5e-4
 weight_decay = 1e-2
+T_0 = 50
+T_mult = 1
 hidden_size = 128
 n_layers = 1
 n_epochs = 100
-n_models = 20
+n_models = 5
 
-plot = False
+plot = True
 
 
 # PREPROCESSING
@@ -165,7 +170,7 @@ for m in range(n_models):
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer, T_0=50, T_mult=1, eta_min=1e-7)
+        optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
 
     names = ['Train loss', 'Test loss', 'Spearman score']
     values = {}
