@@ -24,8 +24,26 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import wandb
+
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
+
+hyperparameter_defaults = dict(
+    c_1=64,
+    c_2=64,
+    c_3=16,
+    hidden_size=128,
+    learning_rate=5e-4,
+    weight_decay=1e-2,
+    T_0=30,
+    n_layers=1,
+    epochs=100
+)
+
+wandb.init(config=hyperparameter_defaults, project="DeepSpCas9")
+config = wandb.config
+
 
 class ContinuousBatchSampler(Sampler):
     def __init__(self, sampler, batch_size, drop_last):
@@ -64,7 +82,7 @@ class ContinuousBatchSampler(Sampler):
 class ConvNeXt(nn.Module):
 
     def __init__(self, in_chans=4,
-                 depths=[3, 6, 3], dims=[32, 64, 16], drop_path_rate=0.4,
+                 depths=[6, 3], dims=[64, 16], drop_path_rate=0.5,
                  layer_scale_init_value=1e-6, head_init_scale=1.,
                  ):
         super().__init__()
@@ -81,7 +99,7 @@ class ConvNeXt(nn.Module):
         for i in range(len(depths)-1):
             downsample_layer = nn.Sequential(
                 LayerNorm(dims[i], eps=1e-6, data_format="channels_first"),
-                nn.Conv1d(dims[i], dims[i+1], kernel_size=2, stride=2) if i == 0 else nn.Conv1d(dims[i], dims[i+1], kernel_size=3, stride=3),
+                nn.Conv1d(dims[i], dims[i+1], kernel_size=2, stride=2),
             )
             self.downsample_layers.append(downsample_layer)
 
@@ -99,7 +117,8 @@ class ConvNeXt(nn.Module):
             cur += depths[i]
 
         # self.norm = nn.LayerNorm(dims[-1], eps=1e-6)  # final norm layer
-        self.norm = LayerNorm(dims[-1], eps=1e-6, data_format="channels_first") # before GRU
+        self.norm = LayerNorm(dims[-1], eps=1e-6,
+                              data_format="channels_first")  # before GRU
         self.head = nn.Linear(dims[-1], 1)
         # self.head = nn.Linear(dims[-1]*7, 1)
 
@@ -122,7 +141,7 @@ class ConvNeXt(nn.Module):
             x = self.stages[i](x)
         # return self.norm(x.mean([-1])) # global average pooling, (N, C, L) -> (N, C)
         # return x
-        return self.norm(x) # before GRU
+        return self.norm(x)  # before GRU
 
     def forward(self, x):
         x = self.forward_features(x)
@@ -134,16 +153,6 @@ class ConvNeXt(nn.Module):
 
 
 class Block(nn.Module):
-    r""" ConvNeXt Block. There are two equivalent implementations:
-    (1) DwConv -> LayerNorm (channels_first) -> 1x1 Conv -> GELU -> 1x1 Conv; all in (N, C, H, W)
-    (2) DwConv -> Permute to (N, H, W, C); LayerNorm (channels_last) -> Linear -> GELU -> Linear; Permute back
-    We use (2) as we find it slightly faster in PyTorch
-
-    Args:
-        dim (int): Number of input channels.
-        drop_path (float): Stochastic depth rate. Default: 0.0
-        layer_scale_init_value (float): Init value for Layer Scale. Default: 1e-6.
-    """
 
     def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6):
         super().__init__()
@@ -183,21 +192,21 @@ class ConvGRU(nn.Module):
         self.num_layers = num_layers
 
         self.c = nn.Sequential(
-            nn.Conv1d(in_channels=4, out_channels=64,
+            nn.Conv1d(in_channels=4, out_channels=config.c_1,
                       kernel_size=3, stride=1, padding=1),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
 
-            nn.Conv1d(in_channels=64, out_channels=64,
+            nn.Conv1d(in_channels=config.c_1, out_channels=config.c_2,
                       kernel_size=3, stride=1, padding=1),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=3, stride=3),
 
-            nn.Conv1d(in_channels=64, out_channels=16,
+            nn.Conv1d(in_channels=config.c_2, out_channels=config.c_3,
                       kernel_size=3, stride=1, padding=1),
             nn.GELU(),
         )
-        self.r = nn.GRU(16, hidden_size, num_layers,
+        self.r = nn.GRU(config.c_3, hidden_size, num_layers,
                         batch_first=True, bidirectional=True)
         self.d = nn.Linear(2 * hidden_size, 1, bias=True)
 
@@ -210,11 +219,6 @@ class ConvGRU(nn.Module):
 
 
 class LayerNorm(nn.Module):
-    r""" LayerNorm that supports two data formats: channels_last (default) or channels_first. 
-    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with 
-    shape (batch_size, height, width, channels) while channels_first corresponds to inputs 
-    with shape (batch_size, channels, height, width).
-    """
 
     def __init__(self, normalized_shape, eps=1e-6, data_format="channels_last"):
         super().__init__()
@@ -272,9 +276,9 @@ def preprocess_seq(data):
 def load_data():
     if not os.path.isfile('data/x_train.npy'):
         data_train = pd.read_excel('aax9249_table_s1.xlsx',
-                                sheet_name=0).iloc[:, [1, 8]]
+                                   sheet_name=0).iloc[:, [1, 8]]
         data_test = pd.read_excel('aax9249_table_s1.xlsx',
-                                sheet_name=1).iloc[:, [0, 4]]
+                                  sheet_name=1).iloc[:, [0, 4]]
 
         x_train = data_train.iloc[:, 0]
         x_test = data_test.iloc[:, 0]
@@ -302,20 +306,21 @@ def load_data():
     return x_train, y_train, x_test, y_test
 
 
-def train(x, y, x_test, y_test, device):
-    
-    k = 5
-    batch_size = 2048
-    learning_rate = 1e-3
-    weight_decay = 1e-2
+def train(x=None, y=None, x_test=None, y_test=None, device=None, finalize=False):
 
-    T_0 = 50
+    k = 5
+    batch_size = 256
+
+    learning_rate = config.learning_rate
+    weight_decay = config.weight_decay
+
+    T_0 = config.T_0
     T_mult = 1
 
-    hidden_size = 128
-    n_layers = 1
+    hidden_size = config.hidden_size
 
-    n_epochs = 200
+    n_layers = config.n_layers
+    n_epochs = config.n_epochs
     n_models = 1
 
     kfold = KFold(n_splits=k, shuffle=False)
@@ -331,20 +336,20 @@ def train(x, y, x_test, y_test, device):
         torch.cuda.manual_seed_all(random_seed)
         np.random.seed(random_seed)
 
-        preds = np.zeros((n_models, y_test.size(0)))  # FOLD PREDICTIONS FOR ENSEMBLE
-        spc[m] = [] # TO LOG SPEARMAN CORRELATION SCORES
+        # FOLD PREDICTIONS FOR ENSEMBLE
+        preds = np.zeros((n_models, y_test.size(0)))
+        spc[m] = []  # TO LOG SPEARMAN CORRELATION SCORES
 
-        for f, (train_idx, valid_idx) in enumerate(kfold.split(x)):
-            
-            train_set = TensorDataset(x[train_idx], y[train_idx])
-            x_valid, y_valid = x[valid_idx], y[valid_idx]
-            
+        if finalize:
+            train_set = TensorDataset(x, y)
+
             train_loader = DataLoader(train_set, batch_sampler=ContinuousBatchSampler(
                 sampler=SequentialSampler(range(len(train_set))), batch_size=batch_size, drop_last=False
-            ))            
+            ))
 
-            model = ConvNeXt().to(device)
-            # model = ConvGRU(hidden_size=hidden_size, num_layers=n_layers).to(device)
+            # model = ConvNeXt().to(device)
+            model = ConvGRU(hidden_size=hidden_size,
+                            num_layers=n_layers).to(device)
 
             criterion = nn.MSELoss()
             optimizer = optim.AdamW(
@@ -352,16 +357,10 @@ def train(x, y, x_test, y_test, device):
             scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
                 optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
 
-            names = ['Train loss', 'Test loss', 'Spearman score']
-
-            values = {}
-            for scheme in names:
-                values[scheme] = []
-
             n_iters = len(train_loader)
 
             for epoch in range(n_epochs):
-                train_epoch_loss, valid_epoch_loss = [], []
+                train_epoch_loss = []
                 train_count = 0
 
                 model.train()
@@ -383,23 +382,9 @@ def train(x, y, x_test, y_test, device):
 
                 train_epoch_loss = sum(train_epoch_loss) / train_count
 
-                model.eval()
+                print('[M {:03}/{:03}] [E {:03}/{:03}] : {:.4f}'.format(m +
+                      1, n_models, epoch + 1, n_epochs, train_epoch_loss))
 
-                with torch.no_grad():
-                    _x = torch.transpose(x_valid.squeeze(), 1, 2)
-                    pred = model(_x)
-                    valid_epoch_loss = criterion(
-                        pred, y_valid.reshape(-1, 1)).detach().cpu()
-                    score = scipy.stats.spearmanr(
-                        pred.detach().cpu(), y_valid.cpu()).correlation
-
-                values[names[0]].append(train_epoch_loss)
-                values[names[1]].append(valid_epoch_loss)
-                values[names[2]].append(score)
-
-                print('[FOLD {:02}/{:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(f + 1, k, m + 1,
-                                                                                                             n_models, epoch + 1, n_epochs, train_epoch_loss, valid_epoch_loss, score))
-            
             if x_test is not None:
                 model.eval()
 
@@ -408,21 +393,113 @@ def train(x, y, x_test, y_test, device):
                     pred = model(_x)
                     score = scipy.stats.spearmanr(
                         pred.detach().cpu(), y_test.cpu()).correlation
-                    
+
                     spc[m].append(score)
                     print(spc[m])
 
+                    preds[m] = pred.squeeze().detach().cpu()
+        else:
+            for f, (train_idx, valid_idx) in enumerate(kfold.split(x)):
+                
+                if f > 0: continue
+
+                train_set = TensorDataset(x[train_idx], y[train_idx])
+                x_valid, y_valid = x[valid_idx], y[valid_idx]
+
+                train_loader = DataLoader(train_set, batch_sampler=ContinuousBatchSampler(
+                    sampler=SequentialSampler(range(len(train_set))), batch_size=batch_size, drop_last=False
+                ))
+
+                # model = ConvNeXt().to(device)
+                model = ConvGRU(hidden_size=hidden_size,
+                                num_layers=n_layers).to(device)
+                wandb.watch(model)
+
+                criterion = nn.MSELoss()
+                optimizer = optim.AdamW(
+                    model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+                scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                    optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
+
+                n_iters = len(train_loader)
+
+                for epoch in range(n_epochs):
+                    train_epoch_loss, valid_epoch_loss = [], []
+                    train_count = 0
+
+                    model.train()
+                    for i, (_x, _y) in enumerate(train_loader):
+                        _x = torch.transpose(_x.squeeze(), 1, 2)
+                        _y = _y.reshape(-1, 1)
+
+                        pred = model(_x)
+                        loss = criterion(pred, _y)
+
+                        optimizer.zero_grad()
+                        loss.backward()
+                        optimizer.step()
+                        scheduler.step(epoch + i / n_iters)
+
+                        train_epoch_loss.append(
+                            _x.size(0) * loss.detach().cpu().numpy())
+                        train_count += _x.size(0)
+
+                    train_epoch_loss = sum(train_epoch_loss) / train_count
+
+                    model.eval()
+
+                    with torch.no_grad():
+                        _x = torch.transpose(x_valid.squeeze(), 1, 2)
+                        pred = model(_x)
+                        valid_epoch_loss = criterion(
+                            pred, y_valid.reshape(-1, 1)).detach().cpu()
+                        score = scipy.stats.spearmanr(
+                            pred.detach().cpu(), y_valid.cpu()).correlation
+
+                    metrics = {'train_loss': train_epoch_loss, 'valid_loss': valid_epoch_loss, 'Spearman score': score}
+
+                    wandb.log(metrics)
+
+                    print('[FOLD {:02}/{:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(f + 1, k, m + 1,
+                                                                                                                 n_models, epoch + 1, n_epochs, train_epoch_loss, valid_epoch_loss, score))
+                
+                wandb.log(metrics)
+
+                if x_test is not None:
+                    model.eval()
+
+                    with torch.no_grad():
+                        _x = torch.transpose(x_test.squeeze(), 1, 2)
+                        pred = model(_x)
+                        score = scipy.stats.spearmanr(
+                            pred.detach().cpu(), y_test.cpu()).correlation
+
+                        spc[m].append(score)
+                        print(spc[m])
+
     print(spc)
 
+    if finalize:
+        print(preds.shape)
+        preds = np.mean(preds, axis=0) * 100 + 40
+        print(preds.shape)
+        y_test = y_test.cpu().numpy() * 100 + 40
+
+        print(scipy.stats.spearmanr(preds, y_test))
 
 
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+def main():
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
-x_train, y_train, x_test, y_test = load_data()
+    x_train, y_train, x_test, y_test = load_data()
 
-x_train = torch.tensor(x_train, dtype=torch.float32, device=device)
-y_train = torch.tensor(y_train, dtype=torch.float32, device=device)
-x_test = torch.tensor(x_test, dtype=torch.float32, device=device)
-y_test = torch.tensor(y_test, dtype=torch.float32, device=device)
+    x_train = torch.tensor(x_train, dtype=torch.float32, device=device)
+    y_train = torch.tensor(y_train, dtype=torch.float32, device=device)
+    x_test = torch.tensor(x_test, dtype=torch.float32, device=device)
+    y_test = torch.tensor(y_test, dtype=torch.float32, device=device)
 
-train(x_train, y_train, x_test, y_test, device)
+    train(x_train, y_train, x_test, y_test, device, finalize=False)
+
+
+if __name__ == '__main__':
+    main()
