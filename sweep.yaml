@@ -1,0 +1,28 @@
+program: DeepSpCas9_ConvNeXt.py
+method: bayes
+metric:
+  goal: minimize
+  name: valid_loss
+parameters:
+  c_1:
+    values: [32, 64, 128]
+  c_2:
+    values: [32, 64, 128]
+  c_3:
+    values: [16, 32, 64]
+  hidden_size:
+    values: [32, 64, 128]
+  learning_rate:
+    values: [1e-4, 5e-4, 1e-3, 5e-3]
+  weight_decay:
+    values: [2e-2, 1e-2, 1e-3, 1e-4, 1e-5]
+  T_0:
+    value: 150
+  n_layers:
+    value: 1
+  n_epochs:
+    value: 150
+early_terminate:
+  type: hyperband
+  eta: 2
+  min_iter: 25
