@@ -1,0 +1,36 @@
+program: DeepPE.py
+method: bayes
+metric:
+  goal: maximize
+  name: Spearman score
+parameters:
+  c_1:
+    distribution: int_uniform
+    min: 64
+    max: 256
+  c_2:
+    distribution: int_uniform
+    min: 32
+    max: 192
+  c_3:
+    distribution: int_uniform
+    min: 16
+    max: 96
+  c_4:
+    distribution: int_uniform
+    min: 8
+    max: 32
+  d_1:
+    values: [32, 64, 96, 128]
+  d_2:
+    values: [32, 48, 64]
+  d_3:
+    values: [16, 32, 64]
+  learning_rate:
+    values: [1e-3, 2e-3, 4e-3, 1e-2]
+  weight_decay:
+    values: [1e-4, 5e-4, 1e-3, 5e-3, 1e-2]
+early_terminate:
+  type: hyperband
+  eta: 2
+  min_iter: 3
