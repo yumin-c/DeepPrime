@@ -277,7 +277,7 @@ T_mult = 1
 hidden_size = 128
 n_layers = 1
 n_epochs = 10
-n_models = 1
+n_models = 10
 
 
 def finetune_model(model, fold, pf_loader, valid_loader):
@@ -361,7 +361,7 @@ def finetune_model(model, fold, pf_loader, valid_loader):
                        'models/final/FM{:02}_auxiliary.pt'.format(fold))
 
         print('FINETUNING: [FOLD {:02}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(
-            fold + 1, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
+            fold, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
 
     os.rename('models/final/FM{:02}_auxiliary.pt'.format(fold),
               'models/final/FM{:02}.pt'.format(fold))
@@ -373,7 +373,7 @@ def finetune_model(model, fold, pf_loader, valid_loader):
 
 for m in range(n_models):
 
-    random_seed = m
+    random_seed = m * 216
 
     torch.manual_seed(random_seed)
     torch.cuda.manual_seed(random_seed)
