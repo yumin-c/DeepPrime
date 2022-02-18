@@ -298,9 +298,9 @@ def finetune_model(model, fold, pf_loader, valid_loader):
     #         param.requires_grad = False
 
     criterion = nn.MSELoss()
-    optimizer = torch.optim.AdamW(
+    optimizer = optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
 
     n_iters = len(pf_loader)
@@ -373,7 +373,7 @@ def finetune_model(model, fold, pf_loader, valid_loader):
 
 for m in range(n_models):
 
-    random_seed = m * 216
+    random_seed = m
 
     torch.manual_seed(random_seed)
     torch.cuda.manual_seed(random_seed)
@@ -401,9 +401,9 @@ for m in range(n_models):
             dataset=pf_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
         criterion = nn.MSELoss()
-        optimizer = torch.optim.AdamW(
+        optimizer = optim.AdamW(
             model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
 
         n_iters = len(train_loader)
