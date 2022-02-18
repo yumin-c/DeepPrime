@@ -54,20 +54,24 @@ class GeneInteractionModel(nn.Module):
         self.num_layers = num_layers
 
         self.c1 = nn.Sequential(
-            nn.Conv2d(in_channels=4, out_channels=config.c_1, kernel_size=(2, 3), stride=1, padding=(0, 1)),
+            nn.Conv2d(in_channels=4, out_channels=config.c_1,
+                      kernel_size=(2, 3), stride=1, padding=(0, 1)),
             nn.GELU(),
         )
-        
+
         self.c2 = nn.Sequential(
-            nn.Conv1d(in_channels=config.c_1, out_channels=config.c_2, kernel_size=3, stride=1, padding=1),
+            nn.Conv1d(in_channels=config.c_1, out_channels=config.c_2,
+                      kernel_size=3, stride=1, padding=1),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
 
-            nn.Conv1d(in_channels=config.c_2, out_channels=config.c_2, kernel_size=3, stride=1, padding=1),
+            nn.Conv1d(in_channels=config.c_2, out_channels=config.c_2,
+                      kernel_size=3, stride=1, padding=1),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
 
-            nn.Conv1d(in_channels=config.c_2, out_channels=config.c_3, kernel_size=3, stride=1, padding=1),
+            nn.Conv1d(in_channels=config.c_2, out_channels=config.c_3,
+                      kernel_size=3, stride=1, padding=1),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
         )
@@ -76,12 +80,12 @@ class GeneInteractionModel(nn.Module):
                         batch_first=True, bidirectional=True)
 
         self.s = nn.Linear(2 * hidden_size, config.c_4, bias=False)
-        
+
         self.d = nn.Sequential(
             nn.Linear(27, config.d_1, bias=False),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(config.d_1, config.d_2, bias=False), 
+            nn.Linear(config.d_1, config.d_2, bias=False),
             nn.ReLU(),
             nn.Dropout(0.5),
             nn.Linear(config.d_2, config.d_3, bias=False)
@@ -92,13 +96,13 @@ class GeneInteractionModel(nn.Module):
             nn.Dropout(0.25),
             nn.Linear(config.c_4 + config.d_3, 1, bias=True),
         )
-        
+
     def forward(self, g, x):
         g = torch.squeeze(self.c1(g), 2)
         g = self.c2(g)
         g, _ = self.r(torch.transpose(g, 1, 2))
         g = self.s(g[:, -1, :])
-        
+
         x = self.d(x)
 
         out = self.head(torch.cat((g, x), dim=1))
@@ -107,7 +111,7 @@ class GeneInteractionModel(nn.Module):
 
 
 class GeneFeatureDataset(Dataset):
-    
+
     def __init__(
         self,
         gene: torch.Tensor = None,
@@ -120,7 +124,7 @@ class GeneFeatureDataset(Dataset):
         self.fold = fold
         self.mode = mode
         self.fold_list = fold_list
-        
+
         if self.fold_list is not None:
             self.indices = self._select_fold()
             self.gene = gene[self.indices]
@@ -133,25 +137,25 @@ class GeneFeatureDataset(Dataset):
 
     def _select_fold(self):
         selected_indices = []
-        
-        if self.mode == 'valid': # SELECT A SINGLE GROUP
+
+        if self.mode == 'valid':  # SELECT A SINGLE GROUP
             for i in range(len(self.fold_list)):
                 if self.fold_list[i] == self.fold:
                     selected_indices.append(i)
-        elif self.mode == 'train': # SELECT OTHERS
+        elif self.mode == 'train':  # SELECT OTHERS
             for i in range(len(self.fold_list)):
                 if self.fold_list[i] != self.fold:
                     selected_indices.append(i)
-        else: # FOR FINALIZING
+        else:  # FOR FINALIZING
             for i in range(len(self.fold_list)):
                 selected_indices.append(i)
 
         return selected_indices
-    
+
     def __len__(self):
         return len(self.gene)
-    
-    def __getitem__(self, idx:int) -> Tuple[torch.Tensor, torch.Tensor]:
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         gene = self.gene[idx]
         features = self.features[idx]
         target = self.target[idx]
@@ -232,9 +236,9 @@ train_fold = train_PECV.Fold
 train_target = train_PECV.Measured_PE_efficiency
 
 test_features = test_PECV.loc[:, ['PBSlen', 'RTlen', 'RT-PBSlen', 'Edit_pos', 'Edit_len', 'RHA_len', 'type_sub',
-                                    'type_ins', 'type_del', 'Tm1', 'Tm2', 'Tm2new', 'Tm3', 'Tm4', 'TmD',
-                                    'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3',
-                                    'MFE1', 'MFE2', 'MFE3', 'MFE4', 'MFE5', 'DeepSpCas9_score']]
+                                  'type_ins', 'type_del', 'Tm1', 'Tm2', 'Tm2new', 'Tm3', 'Tm4', 'TmD',
+                                  'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3',
+                                  'MFE1', 'MFE2', 'MFE3', 'MFE4', 'MFE5', 'DeepSpCas9_score']]
 test_target = test_PECV.Measured_PE_efficiency
 
 
@@ -284,14 +288,19 @@ for m in range(n_models):
     np.random.seed(random_seed)
 
     for fold in range(5):
-        
-        model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-        train_set = GeneFeatureDataset(g_train, x_train, y_train, fold, 'train', train_fold)
-        valid_set = GeneFeatureDataset(g_train, x_train, y_train, fold, 'valid', train_fold)
+        model = GeneInteractionModel(
+            hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-        train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
-        valid_loader = DataLoader(dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
+        train_set = GeneFeatureDataset(
+            g_train, x_train, y_train, fold, 'train', train_fold)
+        valid_set = GeneFeatureDataset(
+            g_train, x_train, y_train, fold, 'valid', train_fold)
+
+        train_loader = DataLoader(
+            dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
+        valid_loader = DataLoader(
+            dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
         criterion = nn.MSELoss()
         optimizer = torch.optim.AdamW(
@@ -333,7 +342,7 @@ for m in range(n_models):
 
                     pred = model(g, x)
                     loss = criterion(pred, y)
-                    
+
                     valid_loss.append(x.size(0) * loss.detach().cpu().numpy())
                     valid_count += x.size(0)
 
@@ -341,20 +350,21 @@ for m in range(n_models):
                         pred_ = pred.detach().cpu().numpy()
                         y_ = y.detach().cpu().numpy()
                     else:
-                        pred_ = np.concatenate((pred_, pred.detach().cpu().numpy()))
+                        pred_ = np.concatenate(
+                            (pred_, pred.detach().cpu().numpy()))
                         y_ = np.concatenate((y_, y.detach().cpu().numpy()))
-
 
             train_loss = sum(train_loss) / train_count
             valid_loss = sum(valid_loss) / valid_count
 
             SPR = scipy.stats.spearmanr(pred_, y_).correlation
 
-            print('[FOLD {:02}/{:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold + 1, 5, m + 1,
-                n_models, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
-            
-            metrics = {'Train loss': train_loss, 'Valid loss': valid_loss, 'Spearman score': SPR}
+            print('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold + 1, m + 1,
+                                                                                                   n_models, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
+
+            metrics = {'Train loss': train_loss,
+                       'Valid loss': valid_loss, 'Spearman score': SPR}
 
             wandb.log(metrics)
-        
+
         break
