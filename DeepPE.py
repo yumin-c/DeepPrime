@@ -1,4 +1,3 @@
-# %%
 import sys
 import os
 import math
@@ -191,13 +190,11 @@ def seq_concat(data):
     return g
 
 
+# LOAD & PREPROCESS GENES
+
 train_PECV = pd.read_csv('data/DeepPrime_PECV__train_220214.csv')
 test_PECV = pd.read_csv('data/DeepPrime_PECV__test_220214.csv')
-train_PF = pd.read_csv(
-    'data/Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv')
-
-
-# PREPROCESS GENES
+train_PF = pd.read_csv('data/Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv')
 
 if not os.path.isfile('data/g_train.npy'):
     g_train = seq_concat(train_PECV)
@@ -280,20 +277,20 @@ T_mult = 1
 hidden_size = 128
 n_layers = 1
 n_epochs = 10
-n_models = 5
+n_models = 1
 
 
 def finetune_model(model, fold, pf_loader, valid_loader):
 
     # PARAMETERS FOR FINETUNING
 
-    learning_rate = 2e-5
+    learning_rate = 1e-5
     weight_decay = 1e-4
     T_0 = 10
     T_mult = 1
-    n_epochs = 10
+    n_epochs = 5
 
-    best_score = [0, 0, 0]
+    best_score = [10., 10., 0.]
 
     # TO LOCK THE GENE ABSTRACTION MODULE WHILE FINETUNING
     # for name, param in model.named_parameters():
@@ -356,22 +353,22 @@ def finetune_model(model, fold, pf_loader, valid_loader):
         valid_loss = sum(valid_loss) / valid_count
 
         SPR = scipy.stats.spearmanr(pred_, y_).correlation
-
+        
         if SPR > best_score[2]:
             best_score = [train_loss, valid_loss, SPR]
 
             torch.save(model.state_dict(),
-                       'models/final/F{:02}_auxiliary.pt'.format(fold))
+                       'models/final/FM{:02}_auxiliary.pt'.format(fold))
 
         print('FINETUNING: [FOLD {:02}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(
             fold + 1, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
 
-    os.rename('models/final/F{:02}_auxiliary.pt'.format(fold),
-              'models/final/F{:02}.pt'.format(fold))
+    os.rename('models/final/FM{:02}_auxiliary.pt'.format(fold),
+              'models/final/FM{:02}.pt'.format(fold))
 
     return model
 
-# %%
+
 # TRAINING & VALIDATION
 
 for m in range(n_models):
@@ -385,7 +382,7 @@ for m in range(n_models):
 
     for fold in range(5):
 
-        best_score = [0, 0, 0]
+        best_score = [10., 10., 0.]
 
         model = GeneInteractionModel(
             hidden_size=hidden_size, num_layers=n_layers).to(device)
@@ -418,7 +415,7 @@ for m in range(n_models):
             model.train()
 
             for i, (g, x, y) in enumerate(train_loader):
-                g = torch.permute(g, (0, 3, 1, 2))
+                g = g.permute((0, 3, 1, 2))
                 y = y.reshape(-1, 1)
 
                 pred = model(g, x)
@@ -438,7 +435,7 @@ for m in range(n_models):
 
             with torch.no_grad():
                 for i, (g, x, y) in enumerate(valid_loader):
-                    g = torch.permute(g, (0, 3, 1, 2))
+                    g = g.permute((0, 3, 1, 2))
                     y = y.reshape(-1, 1)
 
                     pred = model(g, x)
@@ -460,20 +457,18 @@ for m in range(n_models):
 
             SPR = scipy.stats.spearmanr(pred_, y_).correlation
 
-            if SPR > best_score[2]:
+            if valid_loss < best_score[1]:
                 best_score = [train_loss, valid_loss, SPR]
 
                 torch.save(model.state_dict(),
-                           'models/F{:02}_auxiliary.pt'.format(fold))
+                           'models/FM{:02}_auxiliary.pt'.format(fold))
 
             print('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1,
                                                                                                    n_models, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
+        os.rename('models/FM{:02}_auxiliary.pt'.format(fold),
+                  'models/FM{:02}_{:.4f}.pt'.format(fold, best_score[1]))
 
-        os.rename('models/F{:02}_auxiliary.pt'.format(fold),
-                  'models/F{:02}_{:.4f}.pt'.format(fold, best_score[2]))
 
-
-# %%
 # MODEL FINE TUNING
 
 pf_set = GeneFeatureDataset(g_pf, x_pf, y_pf, None, 'train', None)
@@ -482,14 +477,14 @@ pf_loader = DataLoader(
 
 for fold in range(5):
 
+    best_score = 10.
     best_model = ''
-    best_score = 0.
 
     for (path, dir, files) in os.walk('models/'):
         for filename in files:
-            if filename[:5] == 'F{:02}_0'.format(fold):
-                score = float(filename[4:10])
-                if score > best_score:
+            if filename[:6] == 'FM{:02}_0'.format(fold):
+                score = float(filename[5:10])
+                if score < best_score:
                     best_model = filename
                     best_score = score
 
@@ -506,8 +501,10 @@ for fold in range(5):
 
     model = finetune_model(model, fold, pf_loader, valid_loader)
 
-    torch.save(model.state_dict(), 'models/final/F{:02}.pt'.format(fold))
+    torch.save(model.state_dict(), 'models/final/FM{:02}.pt'.format(fold))
 
+
+# AVERAGE RESULTS & FINAL TEST
 
 test_set = GeneFeatureDataset(g_test, x_test, y_test)
 test_loader = DataLoader(
@@ -519,7 +516,7 @@ for fold in range(5):
     model = GeneInteractionModel(
         hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-    model.load_state_dict(torch.load('models/final/F{:02}.pt'.format(fold)))
+    model.load_state_dict(torch.load('models/final/FM{:02}.pt'.format(fold)))
 
     pred_, y_ = None, None
 
@@ -554,5 +551,3 @@ preds = pd.DataFrame(preds, columns=['Predicted PE efficiency'])
 preds.to_csv('results/220218.csv', index=False)
 
 plot.plot_spearman(preds, y_, 'Evaluation of DeepPE2.jpg')
-
-# %%
