@@ -1,5 +1,6 @@
-## Projects on CRISPR-based genome editing.
+## Projects on pegRNA-based genome editing.
 
-### Currently working on tasks below:
-* Improving DeepSpCas9 (proposed by [HK Kim et al. (2019)](https://www.science.org/doi/10.1126/sciadv.aax9249)).
-* Predicting the efficiency of prime editing guide RNAs.
+### Currently working on:
+* Improving [DeepPE](http://deepcrispr.info/DeepPE/) using a Conv2D-RNN-based model.
+* Fine-tuning using a small amount of external data that tested various pegRNA combinations.
+![Model performance](https://github.com/yumin-c/DeepPE/blob/master/Evaluation%20of%20DeepPE2.jpg?raw=true)
