@@ -1,10 +1,11 @@
-# %%
 import sys
 import os
 import math
+import copy
 
 import numpy as np
 from numpy.random import shuffle
+from pyrsistent import b
 import scipy
 import pandas as pd
 
@@ -22,6 +23,7 @@ from sklearn.model_selection import train_test_split, KFold
 
 from tqdm import tqdm
 import plot
+import finetune
 import seaborn as sns
 
 import wandb
@@ -97,16 +99,42 @@ class GeneInteractionModel(nn.Module):
 
         out = self.head(torch.cat((g, x), dim=1))
 
-        return out
-
-
-class MSLELoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.mse = nn.MSELoss()
+        return F.softplus(out)
         
+
+class BalancedMSELoss(nn.Module):
+
+    def __init__(self, mode='pretrain'):
+        super(BalancedMSELoss, self).__init__()
+
+        if mode == 'pretrain':
+            self.factor = [1, 0.7, 0.6]
+        elif mode == 'finetuning':
+            self.factor = [1, 1, 0.7]
+        
+        # self.mse = ScaledMSELoss()
+        self.mse = nn.MSELoss()
+
     def forward(self, pred, actual):
-        return self.mse(torch.log(F.softplus(pred) + 1), torch.log(F.softplus(actual) + 1))
+        pred = pred.view(-1, 1)
+        y    = actual[:, 0].view(-1, 1)
+
+        l1 = self.mse(pred[actual[:, 1] == 1], y[actual[:, 1] == 1]) * self.factor[0]
+        l2 = self.mse(pred[actual[:, 2] == 1], y[actual[:, 2] == 1]) * self.factor[1]
+        l3 = self.mse(pred[actual[:, 3] == 1], y[actual[:, 3] == 1]) * self.factor[2]
+
+        # AVERAGING SCALES UP THE LOSS BY 1/RATIO.
+        
+        return l1 + l2 + l3
+
+
+class ScaledMSELoss(nn.Module):
+
+    def __init__(self):
+        super(ScaledMSELoss, self).__init__()
+
+    def forward(self, pred, y):
+        return torch.mean(torch.sqrt(1 * 0.5 * y + 1) * (y-pred) ** 2) * 1e-2
 
 
 class GeneFeatureDataset(Dataset):
@@ -251,21 +279,28 @@ pf_features = train_PF.loc[:, ['PBSlen', 'RTlen', 'RT-PBSlen', 'Edit_pos', 'Edit
                                'MFE1', 'MFE2', 'MFE3', 'MFE4', 'MFE5', 'DeepSpCas9_score']]
 pf_target = train_PF.Measured_PE_efficiency
 
+train_type = train_PECV.loc[:, ['type_sub', 'type_ins', 'type_del']]
+test_type = test_PECV.loc[:, ['type_sub', 'type_ins', 'type_del']]
+pf_type = train_PF.loc[:, ['type_sub', 'type_ins', 'type_del']]
+
 
 # NORMALIZATION
 
 x_train = (train_features - train_features.mean()) / train_features.std()
 y_train = train_target / train_target.std()
+y_train = pd.concat([y_train, train_type], axis=1)
 x_train = x_train.to_numpy()
 y_train = y_train.to_numpy()
 
 x_test = (test_features - train_features.mean()) / train_features.std()
 y_test = test_target / train_target.std()
+y_test = pd.concat([y_test, test_type], axis=1)
 x_test = x_test.to_numpy()
 y_test = y_test.to_numpy()
 
 x_pf = (pf_features - train_features.mean()) / train_features.std()
 y_pf = pf_target / train_target.std()
+y_pf = pd.concat([y_pf, pf_type], axis=1)
 x_pf = x_pf.to_numpy()
 y_pf = y_pf.to_numpy()
 
@@ -282,26 +317,24 @@ x_pf = torch.tensor(x_pf, dtype=torch.float32, device=device)
 y_pf = torch.tensor(y_pf, dtype=torch.float32, device=device)
 
 
-# %%
-
 # PARAMS
 
 batch_size = 2048
 learning_rate = 5e-3
-weight_decay = 1e-3
+weight_decay = 5e-2
 T_0 = 10
 T_mult = 1
 hidden_size = 128
 n_layers = 1
 n_epochs = 10
-n_models = 10
-
+n_models = 1
+finetune = False
 
 # TRAINING & VALIDATION
 
 for m in range(n_models):
 
-    random_seed = m
+    random_seed = 1 + m
 
     torch.manual_seed(random_seed)
     torch.cuda.manual_seed(random_seed)
@@ -328,7 +361,7 @@ for m in range(n_models):
         pf_loader = DataLoader(
             dataset=pf_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
-        criterion = MSLELoss()
+        criterion = BalancedMSELoss(mode='pretrain')
         optimizer = optim.AdamW(
             model.parameters(), lr=learning_rate, weight_decay=weight_decay)
         scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
@@ -344,7 +377,7 @@ for m in range(n_models):
 
             for i, (g, x, y) in enumerate(train_loader):
                 g = g.permute((0, 3, 1, 2))
-                y = y.reshape(-1, 1)
+                y = y.reshape(-1, 4)
 
                 pred = model(g, x)
                 loss = criterion(pred, y)
@@ -364,7 +397,7 @@ for m in range(n_models):
             with torch.no_grad():
                 for i, (g, x, y) in enumerate(valid_loader):
                     g = g.permute((0, 3, 1, 2))
-                    y = y.reshape(-1, 1)
+                    y = y.reshape(-1, 4)
 
                     pred = model(g, x)
                     loss = criterion(pred, y)
@@ -374,11 +407,11 @@ for m in range(n_models):
 
                     if pred_ is None:
                         pred_ = pred.detach().cpu().numpy()
-                        y_ = y.detach().cpu().numpy()
+                        y_ = y.detach().cpu().numpy()[:, 0]
                     else:
                         pred_ = np.concatenate(
                             (pred_, pred.detach().cpu().numpy()))
-                        y_ = np.concatenate((y_, y.detach().cpu().numpy()))
+                        y_ = np.concatenate((y_, y.detach().cpu().numpy()[:, 0]))
 
             train_loss = sum(train_loss) / train_count
             valid_loss = sum(valid_loss) / valid_count
@@ -396,99 +429,49 @@ for m in range(n_models):
         os.rename('models/FM{:02}_auxiliary.pt'.format(fold),
                   'models/FM{:02}_{:.4f}.pt'.format(fold, best_score[1]))
 
-# %%
-def finetune_model(model, fold, pf_loader, valid_loader):
-
-    # PARAMETERS FOR FINETUNING
-
-    learning_rate = 5e-5
-    weight_decay = 0e-5
-    T_0 = 10
-    T_mult = 1
-    n_epochs = 1
-
-    best_score = [10., 10., 0.]
-
-    # TO LOCK THE GENE ABSTRACTION MODULE WHILE FINETUNING
-    # for name, param in model.named_parameters():
-    #     if param.requires_grad and name.startswith('c') or name.startswith('r'):
-    #         param.requires_grad = False
-
-    criterion = MSLELoss()
-    optimizer = optim.AdamW(
-        model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
-
-    n_iters = len(pf_loader)
-
-    for epoch in tqdm(range(n_epochs)):
-        train_loss, valid_loss = [], []
-        train_count, valid_count = 0, 0
-
-        model.train()
-
-        for i, (g, x, y) in enumerate(pf_loader):
-            g = g.permute((0, 3, 1, 2))
-            y = y.reshape(-1, 1)
-
-            pred = model(g, x)
-            loss = criterion(pred, y)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            scheduler.step(epoch + i / n_iters)
-
-            train_loss.append(x.size(0) * loss.detach().cpu().numpy())
-            train_count += x.size(0)
-
-        model.eval()
-
-        pred_, y_ = None, None
-
-        with torch.no_grad():
-            for i, (g, x, y) in enumerate(valid_loader):
-                g = g.permute((0, 3, 1, 2))
-                y = y.reshape(-1, 1)
-
-                pred = model(g, x)
-                loss = criterion(pred, y)
-
-                valid_loss.append(x.size(0) * loss.detach().cpu().numpy())
-                valid_count += x.size(0)
-
-                if pred_ is None:
-                    pred_ = pred.detach().cpu().numpy()
-                    y_ = y.detach().cpu().numpy()
-                else:
-                    pred_ = np.concatenate(
-                        (pred_, pred.detach().cpu().numpy()))
-                    y_ = np.concatenate((y_, y.detach().cpu().numpy()))
-
-        train_loss = sum(train_loss) / train_count
-        valid_loss = sum(valid_loss) / valid_count
-
-        SPR = scipy.stats.spearmanr(pred_, y_).correlation
-        
-        if SPR > best_score[2]:
-            best_score = [train_loss, valid_loss, SPR]
-
-            torch.save(model.state_dict(),
-                       'models/final/FM{:02}_auxiliary.pt'.format(fold))
-
-        print('FINETUNING: [FOLD {:02}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(
-            fold, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
-
-    os.rename('models/final/FM{:02}_auxiliary.pt'.format(fold),
-              'models/final/FM{:02}.pt'.format(fold))
-
 
 # MODEL FINE TUNING
 
-pf_set = GeneFeatureDataset(g_pf, x_pf, y_pf, None, 'train', None)
-pf_loader = DataLoader(
-    dataset=pf_set, batch_size=batch_size, shuffle=True, num_workers=0)
+if finetune:
+
+    pf_set = GeneFeatureDataset(g_pf, x_pf, y_pf, None, 'train', None)
+    pf_loader = DataLoader(
+        dataset=pf_set, batch_size=batch_size, shuffle=True, num_workers=0)
+
+    for fold in range(5):
+
+        best_score = 10.
+        best_model = ''
+
+        for (path, dir, files) in os.walk('models/'):
+            for filename in files:
+                if filename[:6] == 'FM{:02}_0'.format(fold):
+                    score = float(filename[5:10])
+                    if score < best_score:
+                        best_model = filename
+                        best_score = score
+
+        valid_set = GeneFeatureDataset(
+            g_train, x_train, y_train, fold, 'valid', train_fold)
+        valid_loader = DataLoader(
+            dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
+
+        model = GeneInteractionModel(
+            hidden_size=hidden_size, num_layers=n_layers).to(device)
+
+        print('Fine-tuning with', best_model)
+        model.load_state_dict(torch.load('models/' + best_model))
+
+        model = finetune.finetune_model(model, fold, pf_loader, valid_loader)
+
+
+# AVERAGE RESULTS & FINAL TEST
+
+test_set = GeneFeatureDataset(g_test, x_test, y_test)
+test_loader = DataLoader(
+    dataset=test_set, batch_size=batch_size, shuffle=False, num_workers=0)
+
+preds = []
 
 for fold in range(5):
 
@@ -502,36 +485,13 @@ for fold in range(5):
                 if score < best_score:
                     best_model = filename
                     best_score = score
-
-    valid_set = GeneFeatureDataset(
-        g_train, x_train, y_train, fold, 'valid', train_fold)
-    valid_loader = DataLoader(
-        dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
-
+    
     model = GeneInteractionModel(
         hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-    print('Fine-tuning with', best_model)
+    # model.load_state_dict(torch.load('models/final/FM{:02}.pt'.format(fold)))
+    # model.load_state_dict(torch.load(models[fold]))
     model.load_state_dict(torch.load('models/' + best_model))
-
-    model = finetune_model(model, fold, pf_loader, valid_loader)
-
-
-# %%
-
-# AVERAGE RESULTS & FINAL TEST
-
-test_set = GeneFeatureDataset(g_test, x_test, y_test)
-test_loader = DataLoader(
-    dataset=test_set, batch_size=batch_size, shuffle=False, num_workers=0)
-
-preds = []
-
-for fold in range(5):
-    model = GeneInteractionModel(
-        hidden_size=hidden_size, num_layers=n_layers).to(device)
-
-    model.load_state_dict(torch.load('models/final/FM{:02}.pt'.format(fold)))
 
     pred_, y_ = None, None
 
@@ -539,31 +499,28 @@ for fold in range(5):
     with torch.no_grad():
         for i, (g, x, y) in enumerate(test_loader):
             g = g.permute((0, 3, 1, 2))
-            y = y.reshape(-1, 1)
+            y = y.reshape(-1, 4)
 
             pred = model(g, x)
 
             if pred_ is None:
                 pred_ = pred.detach().cpu().numpy()
-                y_ = y.detach().cpu().numpy()
+                y_ = y.detach().cpu().numpy()[:, 0]
             else:
                 pred_ = np.concatenate(
                     (pred_, pred.detach().cpu().numpy()))
-                y_ = np.concatenate((y_, y.detach().cpu().numpy()))
+                y_ = np.concatenate((y_, y.detach().cpu().numpy()[:, 0]))
 
     preds.append(pred_)
-    SPR = scipy.stats.spearmanr(pred_, y_).correlation
 
 preds = np.squeeze(np.array(preds))
 preds = np.mean(preds, axis=0)
+preds = preds * train_target.std() #+ train_target.mean()
+y_ = y_ * train_target.std() #+ train_target.mean()
 
 print(scipy.stats.spearmanr(preds, y_).correlation)
 
-preds = preds * train_target.std()
-y_ = y_ * train_target.std()
-
 preds = pd.DataFrame(preds, columns=['Predicted PE efficiency'])
-preds.to_csv('results/220218.csv', index=False)
+preds.to_csv('results/220219_weighted.csv', index=False)
 
 plot.plot_spearman(preds, y_, 'Evaluation of DeepPE2.jpg')
-# %%
