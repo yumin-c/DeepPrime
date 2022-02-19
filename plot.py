@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy
+import scipy.stats
 
 def plot_spearman(pred: np.ndarray, y: np.ndarray, filename: str):
 
@@ -18,11 +18,11 @@ def plot_spearman(pred: np.ndarray, y: np.ndarray, filename: str):
     ax.set_xlabel("Measured PE2 efficiency (%)")
     ax.set_ylabel("DeepPE prediction score (%)")
 
-    ax.annotate('R = {:.4f}'.format(corr),
+    ax.annotate('R = {:.4f}\nn = {}'.format(corr, len(y)),
                 xy=(1, 0), xycoords='axes fraction',
                 xytext=(-20, 20), textcoords='offset pixels',
                 horizontalalignment='right',
                 verticalalignment='bottom')
 
-    plt.savefig(filename, bbox_inches="tight", dpi=200)
+    plt.savefig(filename, bbox_inches="tight", dpi=600)
     plt.close()

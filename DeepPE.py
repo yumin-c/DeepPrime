@@ -5,7 +5,6 @@ import copy
 
 import numpy as np
 from numpy.random import shuffle
-from pyrsistent import b
 import scipy
 import pandas as pd
 
@@ -32,7 +31,6 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
-
 
 class GeneInteractionModel(nn.Module):
 
@@ -117,7 +115,7 @@ class BalancedMSELoss(nn.Module):
 
     def forward(self, pred, actual):
         pred = pred.view(-1, 1)
-        y    = actual[:, 0].view(-1, 1)
+        y    = torch.log(actual[:, 0].view(-1, 1) + 1)
 
         l1 = self.mse(pred[actual[:, 1] == 1], y[actual[:, 1] == 1]) * self.factor[0]
         l2 = self.mse(pred[actual[:, 2] == 1], y[actual[:, 2] == 1]) * self.factor[1]
@@ -134,7 +132,7 @@ class ScaledMSELoss(nn.Module):
         super(ScaledMSELoss, self).__init__()
 
     def forward(self, pred, y):
-        return torch.mean(torch.sqrt(1 * 0.5 * y + 1) * (y-pred) ** 2) * 1e-2
+        return torch.mean(torch.sqrt(1 * 0.5 * y + 1) * (y-pred) ** 2)
 
 
 class GeneFeatureDataset(Dataset):
@@ -287,19 +285,19 @@ pf_type = train_PF.loc[:, ['type_sub', 'type_ins', 'type_del']]
 # NORMALIZATION
 
 x_train = (train_features - train_features.mean()) / train_features.std()
-y_train = train_target / train_target.std()
+y_train = train_target
 y_train = pd.concat([y_train, train_type], axis=1)
 x_train = x_train.to_numpy()
 y_train = y_train.to_numpy()
 
 x_test = (test_features - train_features.mean()) / train_features.std()
-y_test = test_target / train_target.std()
+y_test = test_target
 y_test = pd.concat([y_test, test_type], axis=1)
 x_test = x_test.to_numpy()
 y_test = y_test.to_numpy()
 
 x_pf = (pf_features - train_features.mean()) / train_features.std()
-y_pf = pf_target / train_target.std()
+y_pf = pf_target
 y_pf = pd.concat([y_pf, pf_type], axis=1)
 x_pf = x_pf.to_numpy()
 y_pf = y_pf.to_numpy()
@@ -320,7 +318,7 @@ y_pf = torch.tensor(y_pf, dtype=torch.float32, device=device)
 # PARAMS
 
 batch_size = 2048
-learning_rate = 5e-3
+learning_rate = 1e-2
 weight_decay = 5e-2
 T_0 = 10
 T_mult = 1
@@ -330,11 +328,12 @@ n_epochs = 10
 n_models = 1
 finetune = False
 
+
 # TRAINING & VALIDATION
 
 for m in range(n_models):
 
-    random_seed = 1 + m
+    random_seed = m
 
     torch.manual_seed(random_seed)
     torch.cuda.manual_seed(random_seed)
@@ -489,8 +488,6 @@ for fold in range(5):
     model = GeneInteractionModel(
         hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-    # model.load_state_dict(torch.load('models/final/FM{:02}.pt'.format(fold)))
-    # model.load_state_dict(torch.load(models[fold]))
     model.load_state_dict(torch.load('models/' + best_model))
 
     pred_, y_ = None, None
@@ -515,12 +512,13 @@ for fold in range(5):
 
 preds = np.squeeze(np.array(preds))
 preds = np.mean(preds, axis=0)
-preds = preds * train_target.std() #+ train_target.mean()
-y_ = y_ * train_target.std() #+ train_target.mean()
+preds = np.exp(preds) - 1
+y_ = y_
 
 print(scipy.stats.spearmanr(preds, y_).correlation)
 
 preds = pd.DataFrame(preds, columns=['Predicted PE efficiency'])
-preds.to_csv('results/220219_weighted.csv', index=False)
+preds.to_csv('results/220220.csv', index=False)
 
-plot.plot_spearman(preds, y_, 'Evaluation of DeepPE2.jpg')
+plot.plot_spearman(preds, y_, 'plots/Evaluation of DeepPE2.jpg')
+# %%
