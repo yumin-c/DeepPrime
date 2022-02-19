@@ -1,3 +1,4 @@
+# %%
 import sys
 import os
 import math
@@ -41,21 +42,25 @@ class GeneInteractionModel(nn.Module):
         self.c1 = nn.Sequential(
             nn.Conv2d(in_channels=4, out_channels=72,
                       kernel_size=(2, 3), stride=1, padding=(0, 1)),
+            nn.BatchNorm2d(72),
             nn.GELU(),
         )
         self.c2 = nn.Sequential(
             nn.Conv1d(in_channels=72, out_channels=64,
                       kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(64),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
 
             nn.Conv1d(in_channels=64, out_channels=64,
                       kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(64),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
 
             nn.Conv1d(in_channels=64, out_channels=96,
                       kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(96),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
         )
@@ -77,6 +82,7 @@ class GeneInteractionModel(nn.Module):
 
         self.head = nn.Sequential(
             # nn.ReLU(),
+            nn.BatchNorm1d(88),
             nn.Dropout(0.25),
             nn.Linear(88, 1, bias=True),
         )
@@ -92,6 +98,15 @@ class GeneInteractionModel(nn.Module):
         out = self.head(torch.cat((g, x), dim=1))
 
         return out
+
+
+class MSLELoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mse = nn.MSELoss()
+        
+    def forward(self, pred, actual):
+        return self.mse(torch.log(F.softplus(pred) + 1), torch.log(F.softplus(actual) + 1))
 
 
 class GeneFeatureDataset(Dataset):
@@ -240,17 +255,17 @@ pf_target = train_PF.Measured_PE_efficiency
 # NORMALIZATION
 
 x_train = (train_features - train_features.mean()) / train_features.std()
-y_train = (train_target - train_target.mean()) / train_target.std()
+y_train = train_target / train_target.std()
 x_train = x_train.to_numpy()
 y_train = y_train.to_numpy()
 
 x_test = (test_features - train_features.mean()) / train_features.std()
-y_test = (test_target - train_target.mean()) / train_target.std()
+y_test = test_target / train_target.std()
 x_test = x_test.to_numpy()
 y_test = y_test.to_numpy()
 
 x_pf = (pf_features - train_features.mean()) / train_features.std()
-y_pf = (pf_target - train_target.mean()) / train_target.std()
+y_pf = pf_target / train_target.std()
 x_pf = x_pf.to_numpy()
 y_pf = y_pf.to_numpy()
 
@@ -267,12 +282,14 @@ x_pf = torch.tensor(x_pf, dtype=torch.float32, device=device)
 y_pf = torch.tensor(y_pf, dtype=torch.float32, device=device)
 
 
+# %%
+
 # PARAMS
 
 batch_size = 2048
-learning_rate = 4e-3
-weight_decay = 1e-2
-T_0 = 12
+learning_rate = 5e-3
+weight_decay = 1e-3
+T_0 = 10
 T_mult = 1
 hidden_size = 128
 n_layers = 1
@@ -280,15 +297,115 @@ n_epochs = 10
 n_models = 10
 
 
+# TRAINING & VALIDATION
+
+for m in range(n_models):
+
+    random_seed = m
+
+    torch.manual_seed(random_seed)
+    torch.cuda.manual_seed(random_seed)
+    torch.cuda.manual_seed_all(random_seed)
+    np.random.seed(random_seed)
+
+    for fold in range(5):
+
+        best_score = [10., 10., 0.]
+
+        model = GeneInteractionModel(
+            hidden_size=hidden_size, num_layers=n_layers).to(device)
+
+        train_set = GeneFeatureDataset(
+            g_train, x_train, y_train, fold, 'train', train_fold)
+        valid_set = GeneFeatureDataset(
+            g_train, x_train, y_train, fold, 'valid', train_fold)
+        pf_set = GeneFeatureDataset(g_pf, x_pf, y_pf, None, 'train', None)
+
+        train_loader = DataLoader(
+            dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
+        valid_loader = DataLoader(
+            dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
+        pf_loader = DataLoader(
+            dataset=pf_set, batch_size=batch_size, shuffle=True, num_workers=0)
+
+        criterion = MSLELoss()
+        optimizer = optim.AdamW(
+            model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
+
+        n_iters = len(train_loader)
+
+        for epoch in tqdm(range(n_epochs)):
+            train_loss, valid_loss = [], []
+            train_count, valid_count = 0, 0
+
+            model.train()
+
+            for i, (g, x, y) in enumerate(train_loader):
+                g = g.permute((0, 3, 1, 2))
+                y = y.reshape(-1, 1)
+
+                pred = model(g, x)
+                loss = criterion(pred, y)
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                scheduler.step(epoch + i / n_iters)
+
+                train_loss.append(x.size(0) * loss.detach().cpu().numpy())
+                train_count += x.size(0)
+
+            model.eval()
+
+            pred_, y_ = None, None
+
+            with torch.no_grad():
+                for i, (g, x, y) in enumerate(valid_loader):
+                    g = g.permute((0, 3, 1, 2))
+                    y = y.reshape(-1, 1)
+
+                    pred = model(g, x)
+                    loss = criterion(pred, y)
+
+                    valid_loss.append(x.size(0) * loss.detach().cpu().numpy())
+                    valid_count += x.size(0)
+
+                    if pred_ is None:
+                        pred_ = pred.detach().cpu().numpy()
+                        y_ = y.detach().cpu().numpy()
+                    else:
+                        pred_ = np.concatenate(
+                            (pred_, pred.detach().cpu().numpy()))
+                        y_ = np.concatenate((y_, y.detach().cpu().numpy()))
+
+            train_loss = sum(train_loss) / train_count
+            valid_loss = sum(valid_loss) / valid_count
+
+            SPR = scipy.stats.spearmanr(pred_, y_).correlation
+
+            if valid_loss < best_score[1]:
+                best_score = [train_loss, valid_loss, SPR]
+
+                torch.save(model.state_dict(),
+                           'models/FM{:02}_auxiliary.pt'.format(fold))
+
+            print('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1,
+                                                                                                   n_models, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
+        os.rename('models/FM{:02}_auxiliary.pt'.format(fold),
+                  'models/FM{:02}_{:.4f}.pt'.format(fold, best_score[1]))
+
+# %%
 def finetune_model(model, fold, pf_loader, valid_loader):
 
     # PARAMETERS FOR FINETUNING
 
-    learning_rate = 1e-5
-    weight_decay = 1e-4
+    learning_rate = 5e-5
+    weight_decay = 0e-5
     T_0 = 10
     T_mult = 1
-    n_epochs = 5
+    n_epochs = 1
 
     best_score = [10., 10., 0.]
 
@@ -297,7 +414,7 @@ def finetune_model(model, fold, pf_loader, valid_loader):
     #     if param.requires_grad and name.startswith('c') or name.startswith('r'):
     #         param.requires_grad = False
 
-    criterion = nn.MSELoss()
+    criterion = MSLELoss()
     optimizer = optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
@@ -366,108 +483,6 @@ def finetune_model(model, fold, pf_loader, valid_loader):
     os.rename('models/final/FM{:02}_auxiliary.pt'.format(fold),
               'models/final/FM{:02}.pt'.format(fold))
 
-    return model
-
-
-# TRAINING & VALIDATION
-
-for m in range(n_models):
-
-    random_seed = m
-
-    torch.manual_seed(random_seed)
-    torch.cuda.manual_seed(random_seed)
-    torch.cuda.manual_seed_all(random_seed)
-    np.random.seed(random_seed)
-
-    for fold in range(5):
-
-        best_score = [10., 10., 0.]
-
-        model = GeneInteractionModel(
-            hidden_size=hidden_size, num_layers=n_layers).to(device)
-
-        train_set = GeneFeatureDataset(
-            g_train, x_train, y_train, fold, 'train', train_fold)
-        valid_set = GeneFeatureDataset(
-            g_train, x_train, y_train, fold, 'valid', train_fold)
-        pf_set = GeneFeatureDataset(g_pf, x_pf, y_pf, None, 'train', None)
-
-        train_loader = DataLoader(
-            dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
-        valid_loader = DataLoader(
-            dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
-        pf_loader = DataLoader(
-            dataset=pf_set, batch_size=batch_size, shuffle=True, num_workers=0)
-
-        criterion = nn.MSELoss()
-        optimizer = optim.AdamW(
-            model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
-
-        n_iters = len(train_loader)
-
-        for epoch in tqdm(range(n_epochs)):
-            train_loss, valid_loss = [], []
-            train_count, valid_count = 0, 0
-
-            model.train()
-
-            for i, (g, x, y) in enumerate(train_loader):
-                g = g.permute((0, 3, 1, 2))
-                y = y.reshape(-1, 1)
-
-                pred = model(g, x)
-                loss = criterion(pred, y)
-
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                scheduler.step(epoch + i / n_iters)
-
-                train_loss.append(x.size(0) * loss.detach().cpu().numpy())
-                train_count += x.size(0)
-
-            model.eval()
-
-            pred_, y_ = None, None
-
-            with torch.no_grad():
-                for i, (g, x, y) in enumerate(valid_loader):
-                    g = g.permute((0, 3, 1, 2))
-                    y = y.reshape(-1, 1)
-
-                    pred = model(g, x)
-                    loss = criterion(pred, y)
-
-                    valid_loss.append(x.size(0) * loss.detach().cpu().numpy())
-                    valid_count += x.size(0)
-
-                    if pred_ is None:
-                        pred_ = pred.detach().cpu().numpy()
-                        y_ = y.detach().cpu().numpy()
-                    else:
-                        pred_ = np.concatenate(
-                            (pred_, pred.detach().cpu().numpy()))
-                        y_ = np.concatenate((y_, y.detach().cpu().numpy()))
-
-            train_loss = sum(train_loss) / train_count
-            valid_loss = sum(valid_loss) / valid_count
-
-            SPR = scipy.stats.spearmanr(pred_, y_).correlation
-
-            if valid_loss < best_score[1]:
-                best_score = [train_loss, valid_loss, SPR]
-
-                torch.save(model.state_dict(),
-                           'models/FM{:02}_auxiliary.pt'.format(fold))
-
-            print('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1,
-                                                                                                   n_models, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
-        os.rename('models/FM{:02}_auxiliary.pt'.format(fold),
-                  'models/FM{:02}_{:.4f}.pt'.format(fold, best_score[1]))
-
 
 # MODEL FINE TUNING
 
@@ -501,8 +516,8 @@ for fold in range(5):
 
     model = finetune_model(model, fold, pf_loader, valid_loader)
 
-    torch.save(model.state_dict(), 'models/final/FM{:02}.pt'.format(fold))
 
+# %%
 
 # AVERAGE RESULTS & FINAL TEST
 
@@ -544,10 +559,11 @@ preds = np.mean(preds, axis=0)
 
 print(scipy.stats.spearmanr(preds, y_).correlation)
 
-preds = preds * train_target.std() + train_target.mean()
-y_ = y_ * train_target.std() + train_target.mean()
+preds = preds * train_target.std()
+y_ = y_ * train_target.std()
 
 preds = pd.DataFrame(preds, columns=['Predicted PE efficiency'])
 preds.to_csv('results/220218.csv', index=False)
 
 plot.plot_spearman(preds, y_, 'Evaluation of DeepPE2.jpg')
+# %%
