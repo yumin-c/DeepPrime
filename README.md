@@ -4,17 +4,18 @@
 * Improving [DeepPE](http://deepcrispr.info/DeepPE/) using a Conv2D-RNN-based model.
 * Fine-tuning using a biased external data that tested various pegRNA combinations
 ```bash
-├── DeepPE.py # main file including train, valid, test code.
-├── DeepPE_3outputs.py # experimental code with three separate outputs.
 ├── data
 │   ├── Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv # PE profiling dataset with a small diversity of target genes.
 │   ├── DeepPrime_PECV__test_220214.csv # PECV test dataset.
-│   └── DeepPrime_PECV__train_220214.csv # PECV train dataset.
+│   ├── DeepPrime_PECV__train_220214.csv # PECV train dataset.
+│   ├── g_pf.npy
+│   ├── g_test.npy
+│   └── g_train.npy
+├── DeepPE.py # main file including train, valid, test code.
+├── DeepPE_3outputs.py # experimental code with three separate outputs.
 ├── finetune.py # code for fine-tuning.
 ├── plot.py # code for plotting.
-├── lightning
-│   ├── DeepPE_sweep_lightning.py
-│   └── PL_DeepPE.py
+├── test.py # code for testing.
 ```
 ### Current model performance
 **DeepPE2 performance plot**
