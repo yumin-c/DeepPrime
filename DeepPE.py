@@ -326,7 +326,7 @@ if __name__ == '__main__':
     hidden_size = 128
     n_layers = 1
     n_epochs = 10
-    n_models = 0
+    n_models = 5
     finetune = False
 
 
@@ -464,62 +464,4 @@ if __name__ == '__main__':
 
             model = finetune.finetune_model(model, fold, pf_loader, valid_loader)
 
-
-    # AVERAGE RESULTS & FINAL TEST
-
-    test_set = GeneFeatureDataset(g_test, x_test, y_test)
-    test_loader = DataLoader(
-        dataset=test_set, batch_size=batch_size, shuffle=False, num_workers=0)
-
-    preds = []
-
-    for fold in range(5):
-
-        best_score = 10.
-        best_model = ''
-
-        for (path, dir, files) in os.walk('models/'):
-            for filename in files:
-                if filename[:6] == 'FM{:02}_0'.format(fold):
-                    score = float(filename[5:10])
-                    if score < best_score:
-                        best_model = filename
-                        best_score = score
-        
-        model = GeneInteractionModel(
-            hidden_size=hidden_size, num_layers=n_layers).to(device)
-
-        model.load_state_dict(torch.load('models/' + best_model))
-
-        pred_, y_ = None, None
-
-        model.eval()
-        with torch.no_grad():
-            for i, (g, x, y) in enumerate(test_loader):
-                g = g.permute((0, 3, 1, 2))
-                y = y.reshape(-1, 4)
-
-                pred = model(g, x)
-
-                if pred_ is None:
-                    pred_ = pred.detach().cpu().numpy()
-                    y_ = y.detach().cpu().numpy()[:, 0]
-                else:
-                    pred_ = np.concatenate(
-                        (pred_, pred.detach().cpu().numpy()))
-                    y_ = np.concatenate((y_, y.detach().cpu().numpy()[:, 0]))
-
-        preds.append(pred_)
-
-    preds = np.squeeze(np.array(preds))
-    preds = np.mean(preds, axis=0)
-    preds = np.exp(preds) - 1
-    y_ = y_
-
-    print(scipy.stats.spearmanr(preds, y_).correlation)
-
-    preds = pd.DataFrame(preds, columns=['Predicted PE efficiency'])
-    preds.to_csv('results/220220.csv', index=False)
-
-    plot.plot_spearman(preds, y_, 'plots/Evaluation of DeepPE2.jpg')
     # %%

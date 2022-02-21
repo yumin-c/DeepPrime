@@ -131,6 +131,8 @@ print(scipy.stats.spearmanr(preds, y_).correlation)
 # SAVE RESULTS
 
 preds = pd.DataFrame(preds, columns=['Predicted PE efficiency'])
-preds.to_csv('test/results/220220.csv', index=False)
+
+preds = pd.concat([test_PECV.iloc[:, [0, 1, -2]], preds], axis=1)
+preds.to_csv('test/results/220221.csv', index=False)
 
 plot.plot_spearman(preds, y_, 'test/plots/Evaluation of DeepPE2.jpg')
