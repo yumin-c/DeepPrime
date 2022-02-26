@@ -1,10 +1,7 @@
 import sys
 import os
-import math
-import copy
 
 import numpy as np
-from numpy.random import shuffle
 import scipy
 import pandas as pd
 
@@ -15,22 +12,16 @@ import torch.nn.functional as F
 import torch.nn as nn
 import torch.optim as optim
 
-from torch.utils.data import Dataset, TensorDataset, DataLoader
-from torch.utils.data.sampler import Sampler, SequentialSampler
-from torch.backends import cudnn
-from sklearn.model_selection import train_test_split, KFold
+from torch.utils.data import Dataset, DataLoader
 
 from tqdm import tqdm
-import plot
-import finetune
-import seaborn as sns
 
-import wandb
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
+
 
 class GeneInteractionModel(nn.Module):
 
@@ -40,51 +31,50 @@ class GeneInteractionModel(nn.Module):
         self.num_layers = num_layers
 
         self.c1 = nn.Sequential(
-            nn.Conv2d(in_channels=4, out_channels=72,
+            nn.Conv2d(in_channels=4, out_channels=128,
                       kernel_size=(2, 3), stride=1, padding=(0, 1)),
-            nn.BatchNorm2d(72),
+            nn.BatchNorm2d(128),
             nn.GELU(),
         )
         self.c2 = nn.Sequential(
-            nn.Conv1d(in_channels=72, out_channels=64,
+            nn.Conv1d(in_channels=128, out_channels=128,
                       kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(64),
+            nn.BatchNorm1d(128),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
 
-            nn.Conv1d(in_channels=64, out_channels=64,
+            nn.Conv1d(in_channels=128, out_channels=128,
                       kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(64),
+            nn.BatchNorm1d(128),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
 
-            nn.Conv1d(in_channels=64, out_channels=96,
+            nn.Conv1d(in_channels=128, out_channels=128,
                       kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(96),
+            nn.BatchNorm1d(128),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
         )
 
-        self.r = nn.GRU(96, hidden_size, num_layers,
+        self.r = nn.GRU(128, hidden_size, num_layers,
                         batch_first=True, bidirectional=True)
 
-        self.s = nn.Linear(2 * hidden_size, 24, bias=False)
+        self.s = nn.Linear(2 * hidden_size, 12, bias=False)
 
         self.d = nn.Sequential(
             nn.Linear(27, 96, bias=False),
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(96, 32, bias=False),
+            nn.Dropout(0.1),
+            nn.Linear(96, 64, bias=False),
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(32, 64, bias=False)
+            nn.Dropout(0.1),
+            nn.Linear(64, 128, bias=False)
         )
 
         self.head = nn.Sequential(
-            # nn.ReLU(),
-            nn.BatchNorm1d(88),
-            nn.Dropout(0.25),
-            nn.Linear(88, 1, bias=True),
+            nn.BatchNorm1d(140),
+            nn.Dropout(0.1),
+            nn.Linear(140, 1, bias=True),
         )
 
     def forward(self, g, x):
@@ -98,7 +88,7 @@ class GeneInteractionModel(nn.Module):
         out = self.head(torch.cat((g, x), dim=1))
 
         return F.softplus(out)
-        
+
 
 class BalancedMSELoss(nn.Module):
 
@@ -106,33 +96,21 @@ class BalancedMSELoss(nn.Module):
         super(BalancedMSELoss, self).__init__()
 
         if mode == 'pretrain':
-            self.factor = [1, 0.7, 0.6]
-        elif mode == 'finetuning':
             self.factor = [1, 1, 0.7]
-        
-        # self.mse = ScaledMSELoss()
+        elif mode == 'finetuning':
+            self.factor = [1, 0.7, 0.6]
+
         self.mse = nn.MSELoss()
 
     def forward(self, pred, actual):
         pred = pred.view(-1, 1)
-        y    = torch.log(actual[:, 0].view(-1, 1) + 1)
+        y = torch.log1p(actual[:, 0].view(-1, 1))
 
         l1 = self.mse(pred[actual[:, 1] == 1], y[actual[:, 1] == 1]) * self.factor[0]
         l2 = self.mse(pred[actual[:, 2] == 1], y[actual[:, 2] == 1]) * self.factor[1]
         l3 = self.mse(pred[actual[:, 3] == 1], y[actual[:, 3] == 1]) * self.factor[2]
 
-        # AVERAGING SCALES UP THE LOSS BY 1/RATIO.
-        
         return l1 + l2 + l3
-
-
-class ScaledMSELoss(nn.Module):
-
-    def __init__(self):
-        super(ScaledMSELoss, self).__init__()
-
-    def forward(self, pred, y):
-        return torch.mean(torch.sqrt(1 * 0.5 * y + 1) * (y-pred) ** 2)
 
 
 class GeneFeatureDataset(Dataset):
@@ -199,7 +177,7 @@ def preprocess_seq(data):
 
             try:
                 data[l][i]
-            except:
+            except Exception:
                 print(data[l], i, length, len(data))
 
             if data[l][i] in "Aa":
@@ -230,13 +208,13 @@ def seq_concat(data):
 
     return g
 
+
 if __name__ == '__main__':
 
     # LOAD & PREPROCESS GENES
 
     train_PECV = pd.read_csv('data/DeepPrime_PECV__train_220214.csv')
     test_PECV = pd.read_csv('data/DeepPrime_PECV__test_220214.csv')
-    train_PF = pd.read_csv('data/Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv')
 
     if not os.path.isfile('data/g_train.npy'):
         g_train = seq_concat(train_PECV)
@@ -250,12 +228,6 @@ if __name__ == '__main__':
     else:
         g_test = np.load('data/g_test.npy')
 
-    if not os.path.isfile('data/g_pf.npy'):
-        g_pf = seq_concat(train_PF)
-        np.save('data/g_pf.npy', g_pf)
-    else:
-        g_pf = np.load('data/g_pf.npy')
-
 
     # FEATURE SELECTION
 
@@ -267,20 +239,13 @@ if __name__ == '__main__':
     train_target = train_PECV.Measured_PE_efficiency
 
     test_features = test_PECV.loc[:, ['PBSlen', 'RTlen', 'RT-PBSlen', 'Edit_pos', 'Edit_len', 'RHA_len', 'type_sub',
-                                    'type_ins', 'type_del', 'Tm1', 'Tm2', 'Tm2new', 'Tm3', 'Tm4', 'TmD',
-                                    'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3',
-                                    'MFE1', 'MFE2', 'MFE3', 'MFE4', 'MFE5', 'DeepSpCas9_score']]
+                                      'type_ins', 'type_del', 'Tm1', 'Tm2', 'Tm2new', 'Tm3', 'Tm4', 'TmD',
+                                      'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3',
+                                      'MFE1', 'MFE2', 'MFE3', 'MFE4', 'MFE5', 'DeepSpCas9_score']]
     test_target = test_PECV.Measured_PE_efficiency
-
-    pf_features = train_PF.loc[:, ['PBSlen', 'RTlen', 'RT-PBSlen', 'Edit_pos', 'Edit_len', 'RHA_len', 'type_sub',
-                                'type_ins', 'type_del', 'Tm1', 'Tm2', 'Tm2new', 'Tm3', 'Tm4', 'TmD',
-                                'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3',
-                                'MFE1', 'MFE2', 'MFE3', 'MFE4', 'MFE5', 'DeepSpCas9_score']]
-    pf_target = train_PF.Measured_PE_efficiency
 
     train_type = train_PECV.loc[:, ['type_sub', 'type_ins', 'type_del']]
     test_type = test_PECV.loc[:, ['type_sub', 'type_ins', 'type_del']]
-    pf_type = train_PF.loc[:, ['type_sub', 'type_ins', 'type_del']]
 
 
     # NORMALIZATION
@@ -297,12 +262,6 @@ if __name__ == '__main__':
     x_test = x_test.to_numpy()
     y_test = y_test.to_numpy()
 
-    x_pf = (pf_features - train_features.mean()) / train_features.std()
-    y_pf = pf_target
-    y_pf = pd.concat([y_pf, pf_type], axis=1)
-    x_pf = x_pf.to_numpy()
-    y_pf = y_pf.to_numpy()
-
     g_train = torch.tensor(g_train, dtype=torch.float32, device=device)
     x_train = torch.tensor(x_train, dtype=torch.float32, device=device)
     y_train = torch.tensor(y_train, dtype=torch.float32, device=device)
@@ -311,22 +270,18 @@ if __name__ == '__main__':
     x_test = torch.tensor(x_test, dtype=torch.float32, device=device)
     y_test = torch.tensor(y_test, dtype=torch.float32, device=device)
 
-    g_pf = torch.tensor(g_pf, dtype=torch.float32, device=device)
-    x_pf = torch.tensor(x_pf, dtype=torch.float32, device=device)
-    y_pf = torch.tensor(y_pf, dtype=torch.float32, device=device)
-
 
     # PARAMS
 
     batch_size = 2048
-    learning_rate = 1e-2
+    learning_rate = 5e-3
     weight_decay = 5e-2
     T_0 = 10
     T_mult = 1
     hidden_size = 128
     n_layers = 1
     n_epochs = 10
-    n_models = 5
+    n_models = 10
     finetune = False
 
 
@@ -347,21 +302,19 @@ if __name__ == '__main__':
 
             model = GeneInteractionModel(
                 hidden_size=hidden_size, num_layers=n_layers).to(device)
+            # model.load_state_dict(torch.load('models/pretrained/1_1.1638.pt'))
 
             train_set = GeneFeatureDataset(
                 g_train, x_train, y_train, fold, 'train', train_fold)
             valid_set = GeneFeatureDataset(
                 g_train, x_train, y_train, fold, 'valid', train_fold)
-            pf_set = GeneFeatureDataset(g_pf, x_pf, y_pf, None, 'train', None)
 
             train_loader = DataLoader(
                 dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
             valid_loader = DataLoader(
                 dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
-            pf_loader = DataLoader(
-                dataset=pf_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
-            criterion = BalancedMSELoss(mode='pretrain')
+            criterion = BalancedMSELoss(mode='finetuning')
             optimizer = optim.AdamW(
                 model.parameters(), lr=learning_rate, weight_decay=weight_decay)
             scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
@@ -409,8 +362,7 @@ if __name__ == '__main__':
                             pred_ = pred.detach().cpu().numpy()
                             y_ = y.detach().cpu().numpy()[:, 0]
                         else:
-                            pred_ = np.concatenate(
-                                (pred_, pred.detach().cpu().numpy()))
+                            pred_ = np.concatenate((pred_, pred.detach().cpu().numpy()))
                             y_ = np.concatenate((y_, y.detach().cpu().numpy()[:, 0]))
 
                 train_loss = sum(train_loss) / train_count
@@ -421,47 +373,10 @@ if __name__ == '__main__':
                 if valid_loss < best_score[1]:
                     best_score = [train_loss, valid_loss, SPR]
 
-                    torch.save(model.state_dict(),
-                            'models/FM{:02}_auxiliary.pt'.format(fold))
+                    torch.save(model.state_dict(),'models/{:02}_auxiliary.pt'.format(fold))
 
                 print('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1,
-                                                                                                    n_models, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
-            os.rename('models/FM{:02}_auxiliary.pt'.format(fold),
-                    'models/FM{:02}_{:.4f}.pt'.format(fold, best_score[1]))
+                                                                                                       n_models, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
 
-
-    # MODEL FINE TUNING
-
-    if finetune:
-
-        pf_set = GeneFeatureDataset(g_pf, x_pf, y_pf, None, 'train', None)
-        pf_loader = DataLoader(
-            dataset=pf_set, batch_size=batch_size, shuffle=True, num_workers=0)
-
-        for fold in range(5):
-
-            best_score = 10.
-            best_model = ''
-
-            for (path, dir, files) in os.walk('models/'):
-                for filename in files:
-                    if filename[:6] == 'FM{:02}_0'.format(fold):
-                        score = float(filename[5:10])
-                        if score < best_score:
-                            best_model = filename
-                            best_score = score
-
-            valid_set = GeneFeatureDataset(
-                g_train, x_train, y_train, fold, 'valid', train_fold)
-            valid_loader = DataLoader(
-                dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
-
-            model = GeneInteractionModel(
-                hidden_size=hidden_size, num_layers=n_layers).to(device)
-
-            print('Fine-tuning with', best_model)
-            model.load_state_dict(torch.load('models/' + best_model))
-
-            model = finetune.finetune_model(model, fold, pf_loader, valid_loader)
-
-    # %%
+            os.rename('models/{:02}_auxiliary.pt'.format(fold),
+                      'models/{:02}_{}_{:.4f}.pt'.format(fold, m, best_score[1]))
