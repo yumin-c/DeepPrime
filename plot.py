@@ -1,12 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.stats
+from scipy import stats
 
 
 def plot_spearman(pred: np.ndarray, y: np.ndarray, filename: str):
 
-    sr, _ = scipy.stats.spearmanr(pred, y)
-    pr, _ = scipy.stats.pearsonr(pred, y)
+    sr, _ = stats.spearmanr(pred, y)
+    pr, _ = stats.pearsonr(pred, y)
 
     _, ax = plt.subplots(figsize=(6, 6))
 
@@ -43,8 +43,8 @@ def plot_spearman(pred: np.ndarray, y: np.ndarray, filename: str):
 
 def plot_rank(pred: np.ndarray, y: np.ndarray, filename: str):
 
-    sr, _ = scipy.stats.spearmanr(pred, y)
-    pr, _ = scipy.stats.pearsonr(pred, y)
+    sr, _ = stats.spearmanr(pred, y)
+    pr, _ = stats.pearsonr(pred, y)
 
     _, ax = plt.subplots(figsize=(6, 6))
 
