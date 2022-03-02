@@ -2,17 +2,15 @@ import sys
 import os
 
 import numpy as np
-from scipy import stats
 import pandas as pd
-
-from typing import Tuple
 
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from torch.optim import AdamW, lr_scheduler
 
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
+from DeepPE import GeneInteractionModel, BalancedMSELoss, GeneFeatureDataset, seq_concat
 
 from tqdm import tqdm
 
@@ -21,205 +19,6 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
-
-
-class GeneInteractionModel(nn.Module):
-
-    def __init__(self, hidden_size, num_layers):
-        super(GeneInteractionModel, self).__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-
-        self.c1 = nn.Sequential(
-            nn.Conv2d(in_channels=4, out_channels=128,
-                      kernel_size=(2, 3), stride=1, padding=(0, 1)),
-            nn.BatchNorm2d(128),
-            nn.GELU(),
-        )
-        self.c2 = nn.Sequential(
-            nn.Conv1d(in_channels=128, out_channels=108,
-                      kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(108),
-            nn.GELU(),
-            nn.AvgPool1d(kernel_size=2, stride=2),
-
-            nn.Conv1d(in_channels=108, out_channels=108,
-                      kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(108),
-            nn.GELU(),
-            nn.AvgPool1d(kernel_size=2, stride=2),
-
-            nn.Conv1d(in_channels=108, out_channels=128,
-                      kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(128),
-            nn.GELU(),
-            nn.AvgPool1d(kernel_size=2, stride=2),
-        )
-
-        self.r = nn.GRU(128, hidden_size, num_layers,
-                        batch_first=True, bidirectional=True)
-
-        self.s = nn.Linear(2 * hidden_size, 12, bias=False)
-
-        self.d = nn.Sequential(
-            nn.Linear(27, 96, bias=False),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(96, 64, bias=False),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(64, 128, bias=False)
-        )
-
-        self.head = nn.Sequential(
-            nn.BatchNorm1d(140),
-            nn.Dropout(0.1),
-            nn.Linear(140, 1, bias=True),
-        )
-
-    def forward(self, g, x):
-        g = torch.squeeze(self.c1(g), 2)
-        g = self.c2(g)
-        g, _ = self.r(torch.transpose(g, 1, 2))
-        g = self.s(g[:, -1, :])
-
-        x = self.d(x)
-
-        out = self.head(torch.cat((g, x), dim=1))
-
-        return F.softplus(out)
-
-
-class BalancedMSELoss(nn.Module):
-
-    def __init__(self, mode='pretrain'):
-        super(BalancedMSELoss, self).__init__()
-
-        if mode == 'pretrain':
-            self.factor = [1, 1, 0.7]
-        elif mode == 'finetuning':
-            self.factor = [1, 0.7, 0.6]
-
-        # self.mse = nn.MSELoss()
-        self.mse = ScaledMSELoss()
-
-    def forward(self, pred, actual):
-        pred = pred.view(-1, 1)
-        y = torch.log1p(actual[:, 0].view(-1, 1))
-
-        l1 = self.mse(pred[actual[:, 1] == 1], y[actual[:, 1] == 1]) * self.factor[0]
-        l2 = self.mse(pred[actual[:, 2] == 1], y[actual[:, 2] == 1]) * self.factor[1]
-        l3 = self.mse(pred[actual[:, 3] == 1], y[actual[:, 3] == 1]) * self.factor[2]
-
-        return l1 + l2 + l3
-
-
-class ScaledMSELoss(nn.Module):
-
-    def __init__(self):
-        super(ScaledMSELoss, self).__init__()
-
-    def forward(self, pred, y):
-        # mu = torch.minimum(torch.exp(7 * (y-2.8)) + 1, torch.ones_like(y) * 25) # inverse
-        mu = torch.minimum(torch.exp(6 * (y-3)) + 1, torch.ones_like(y) * 5) # SQRT-inverse
-
-        return torch.mean(mu * (y-pred) ** 2)
-
-
-class GeneFeatureDataset(Dataset):
-
-    def __init__(
-        self,
-        gene: torch.Tensor = None,
-        features: torch.Tensor = None,
-        target: torch.Tensor = None,
-        fold: int = None,
-        mode: str = 'train',
-        fold_list: np.ndarray = None,
-    ):
-        self.fold = fold
-        self.mode = mode
-        self.fold_list = fold_list
-
-        if self.fold_list is not None:
-            self.indices = self._select_fold()
-            self.gene = gene[self.indices]
-            self.features = features[self.indices]
-            self.target = target[self.indices]
-        else:
-            self.gene = gene
-            self.features = features
-            self.target = target
-
-    def _select_fold(self):
-        selected_indices = []
-
-        if self.mode == 'valid':  # SELECT A SINGLE GROUP
-            for i in range(len(self.fold_list)):
-                if self.fold_list[i] == self.fold:
-                    selected_indices.append(i)
-        elif self.mode == 'train':  # SELECT OTHERS
-            for i in range(len(self.fold_list)):
-                if self.fold_list[i] != self.fold:
-                    selected_indices.append(i)
-        else:  # FOR FINALIZING
-            for i in range(len(self.fold_list)):
-                selected_indices.append(i)
-
-        return selected_indices
-
-    def __len__(self):
-        return len(self.gene)
-
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        gene = self.gene[idx]
-        features = self.features[idx]
-        target = self.target[idx]
-
-        return gene, features, target
-
-
-def preprocess_seq(data):
-    print("Start preprocessing the sequence done 2d")
-    length = 74
-
-    DATA_X = np.zeros((len(data), 1, length, 4), dtype=float)
-    print(np.shape(data), len(data), length)
-    for l in tqdm(range(len(data))):
-        for i in range(length):
-
-            try:
-                data[l][i]
-            except Exception:
-                print(data[l], i, length, len(data))
-
-            if data[l][i] in "Aa":
-                DATA_X[l, 0, i, 0] = 1
-            elif data[l][i] in "Cc":
-                DATA_X[l, 0, i, 1] = 1
-            elif data[l][i] in "Gg":
-                DATA_X[l, 0, i, 2] = 1
-            elif data[l][i] in "Tt":
-                DATA_X[l, 0, i, 3] = 1
-            elif data[l][i] in "Xx":
-                pass
-            else:
-                print("Non-ATGC character " + data[l])
-                print(i)
-                print(data[l][i])
-                sys.exit()
-
-    print("Preprocessed the sequence")
-    return DATA_X
-
-
-def seq_concat(data):
-    wt = preprocess_seq(data.WT74_On)
-    ed = preprocess_seq(data.Edited74_On)
-    g = np.concatenate((wt, ed), axis=1)
-    g = 2 * g - 1
-
-    return g
 
 
 if __name__ == '__main__':
