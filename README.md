@@ -3,6 +3,7 @@
 ### Currently working on:
 * Improving [DeepPE](http://deepcrispr.info/DeepPE/) using a Conv2D-RNN-based model.
 * Fine-tuning using a biased external data that tested various pegRNA combinations
+### Directory tree
 ```bash
 ├── data
 │   ├── Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv # PE profiling dataset with a small diversity of target genes.
@@ -11,11 +12,10 @@
 │   ├── g_pf.npy
 │   ├── g_test.npy
 │   └── g_train.npy
-├── DeepPE.py # main file including train, valid, test code.
-├── DeepPE_3outputs.py # experimental code with three separate outputs.
-├── finetune.py # code for fine-tuning.
+├── DeepPE.py # main train file with 5-fold cv.
+├── DeepPE_finalize.py # final train code without cross-validation.
 ├── plot.py # code for plotting.
-├── test.py # code for testing.
+└── test.py # code for testing.
 ```
 ### Current model performance
 **DeepPE2 performance plot**
