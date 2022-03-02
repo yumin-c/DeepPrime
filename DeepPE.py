@@ -287,7 +287,7 @@ if __name__ == '__main__':
     # PARAMS
 
     batch_size = 2048
-    learning_rate = 4e-3
+    learning_rate = 5e-3
     weight_decay = 5e-2
     T_0 = 10
     T_mult = 1
