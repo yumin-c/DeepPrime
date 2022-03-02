@@ -2,7 +2,7 @@ import sys
 import os
 
 import numpy as np
-import scipy
+from scipy import stats
 import pandas as pd
 
 from typing import Tuple
@@ -10,7 +10,7 @@ from typing import Tuple
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-import torch.optim as optim
+from torch.optim import AdamW, lr_scheduler
 
 from torch.utils.data import Dataset, DataLoader
 
@@ -37,19 +37,19 @@ class GeneInteractionModel(nn.Module):
             nn.GELU(),
         )
         self.c2 = nn.Sequential(
-            nn.Conv1d(in_channels=128, out_channels=128,
+            nn.Conv1d(in_channels=128, out_channels=108,
                       kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(128),
+            nn.BatchNorm1d(108),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
 
-            nn.Conv1d(in_channels=128, out_channels=128,
+            nn.Conv1d(in_channels=108, out_channels=108,
                       kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(128),
+            nn.BatchNorm1d(108),
             nn.GELU(),
             nn.AvgPool1d(kernel_size=2, stride=2),
 
-            nn.Conv1d(in_channels=128, out_channels=128,
+            nn.Conv1d(in_channels=108, out_channels=128,
                       kernel_size=3, stride=1, padding=1),
             nn.BatchNorm1d(128),
             nn.GELU(),
@@ -100,7 +100,8 @@ class BalancedMSELoss(nn.Module):
         elif mode == 'finetuning':
             self.factor = [1, 0.7, 0.6]
 
-        self.mse = nn.MSELoss()
+        # self.mse = nn.MSELoss()
+        self.mse = ScaledMSELoss()
 
     def forward(self, pred, actual):
         pred = pred.view(-1, 1)
@@ -111,6 +112,18 @@ class BalancedMSELoss(nn.Module):
         l3 = self.mse(pred[actual[:, 3] == 1], y[actual[:, 3] == 1]) * self.factor[2]
 
         return l1 + l2 + l3
+
+
+class ScaledMSELoss(nn.Module):
+
+    def __init__(self):
+        super(ScaledMSELoss, self).__init__()
+
+    def forward(self, pred, y):
+        # mu = torch.minimum(torch.exp(7 * (y-2.8)) + 1, torch.ones_like(y) * 25) # inverse
+        mu = torch.minimum(torch.exp(6 * (y-3)) + 1, torch.ones_like(y) * 5) # SQRT-inverse
+
+        return torch.mean(mu * (y-pred) ** 2)
 
 
 class GeneFeatureDataset(Dataset):
@@ -274,7 +287,7 @@ if __name__ == '__main__':
     # PARAMS
 
     batch_size = 2048
-    learning_rate = 5e-3
+    learning_rate = 4e-3
     weight_decay = 5e-2
     T_0 = 10
     T_mult = 1
@@ -282,7 +295,8 @@ if __name__ == '__main__':
     n_layers = 1
     n_epochs = 10
     n_models = 10
-    finetune = False
+
+    use_pretrained = False
 
 
     # TRAINING & VALIDATION
@@ -302,23 +316,23 @@ if __name__ == '__main__':
 
             model = GeneInteractionModel(
                 hidden_size=hidden_size, num_layers=n_layers).to(device)
-            # model.load_state_dict(torch.load('models/pretrained/1_1.1638.pt'))
+            
+            if use_pretrained:
+                model.load_state_dict(torch.load('models/pretrained/3_1.6923.pt'))
 
-            train_set = GeneFeatureDataset(
-                g_train, x_train, y_train, fold, 'train', train_fold)
-            valid_set = GeneFeatureDataset(
-                g_train, x_train, y_train, fold, 'valid', train_fold)
+                for name, param in model.named_parameters():
+                    if param.requires_grad and name.startswith(('c', 'r', 's')):
+                        param.requires_grad = True
 
-            train_loader = DataLoader(
-                dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
-            valid_loader = DataLoader(
-                dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
+            train_set = GeneFeatureDataset(g_train, x_train, y_train, fold, 'train', train_fold)
+            valid_set = GeneFeatureDataset(g_train, x_train, y_train, fold, 'valid', train_fold)
+
+            train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
+            valid_loader = DataLoader(dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
             criterion = BalancedMSELoss(mode='finetuning')
-            optimizer = optim.AdamW(
-                model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-            scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
+            optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+            scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
 
             n_iters = len(train_loader)
 
@@ -368,15 +382,14 @@ if __name__ == '__main__':
                 train_loss = sum(train_loss) / train_count
                 valid_loss = sum(valid_loss) / valid_count
 
-                SPR = scipy.stats.spearmanr(pred_, y_).correlation
+                SPR = stats.spearmanr(pred_, y_).correlation
 
                 if valid_loss < best_score[1]:
                     best_score = [train_loss, valid_loss, SPR]
 
                     torch.save(model.state_dict(),'models/{:02}_auxiliary.pt'.format(fold))
 
-                print('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1,
-                                                                                                       n_models, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
+                print('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1, n_models, epoch + 1, n_epochs, train_loss, valid_loss, SPR))
 
             os.rename('models/{:02}_auxiliary.pt'.format(fold),
                       'models/{:02}_{}_{:.4f}.pt'.format(fold, m, best_score[1]))
