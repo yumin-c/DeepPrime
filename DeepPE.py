@@ -227,19 +227,12 @@ if __name__ == '__main__':
     # LOAD & PREPROCESS GENES
 
     train_PECV = pd.read_csv('data/DeepPrime_PECV__train_220214.csv')
-    test_PECV = pd.read_csv('data/DeepPrime_PECV__test_220214.csv')
 
     if not os.path.isfile('data/g_train.npy'):
         g_train = seq_concat(train_PECV)
         np.save('data/g_train.npy', g_train)
     else:
         g_train = np.load('data/g_train.npy')
-
-    if not os.path.isfile('data/g_test.npy'):
-        g_test = seq_concat(test_PECV)
-        np.save('data/g_test.npy', g_test)
-    else:
-        g_test = np.load('data/g_test.npy')
 
 
     # FEATURE SELECTION
@@ -251,14 +244,7 @@ if __name__ == '__main__':
     train_fold = train_PECV.Fold
     train_target = train_PECV.Measured_PE_efficiency
 
-    test_features = test_PECV.loc[:, ['PBSlen', 'RTlen', 'RT-PBSlen', 'Edit_pos', 'Edit_len', 'RHA_len', 'type_sub',
-                                      'type_ins', 'type_del', 'Tm1', 'Tm2', 'Tm2new', 'Tm3', 'Tm4', 'TmD',
-                                      'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3',
-                                      'MFE1', 'MFE2', 'MFE3', 'MFE4', 'MFE5', 'DeepSpCas9_score']]
-    test_target = test_PECV.Measured_PE_efficiency
-
     train_type = train_PECV.loc[:, ['type_sub', 'type_ins', 'type_del']]
-    test_type = test_PECV.loc[:, ['type_sub', 'type_ins', 'type_del']]
 
 
     # NORMALIZATION
@@ -269,19 +255,9 @@ if __name__ == '__main__':
     x_train = x_train.to_numpy()
     y_train = y_train.to_numpy()
 
-    x_test = (test_features - train_features.mean()) / train_features.std()
-    y_test = test_target
-    y_test = pd.concat([y_test, test_type], axis=1)
-    x_test = x_test.to_numpy()
-    y_test = y_test.to_numpy()
-
     g_train = torch.tensor(g_train, dtype=torch.float32, device=device)
     x_train = torch.tensor(x_train, dtype=torch.float32, device=device)
     y_train = torch.tensor(y_train, dtype=torch.float32, device=device)
-
-    g_test = torch.tensor(g_test, dtype=torch.float32, device=device)
-    x_test = torch.tensor(x_test, dtype=torch.float32, device=device)
-    y_test = torch.tensor(y_test, dtype=torch.float32, device=device)
 
 
     # PARAMS

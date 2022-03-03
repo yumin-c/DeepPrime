@@ -11,22 +11,11 @@ def plot_spearman(pred: np.ndarray, y: np.ndarray, filename: str):
     _, ax = plt.subplots(figsize=(6, 6))
 
     ax.scatter(y, pred, s=0.1)
-
-    log_scale = False
     
-    if log_scale:
-        ax.set_xlim([1e-1, 30])
-        ax.set_ylim([1e-1, 30])
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-        ax.set_xticks([1e-1, 1, 10])
-        ax.set_yticks([1e-1, 1, 10])
-    else:
-        # ax.plot([-1, 31], [-1, 31])
-        ax.set_xlim([-1, 31])
-        ax.set_ylim([-1, 31])
-        ax.set_xticks(range(0, 35, 5))
-        ax.set_yticks(range(0, 35, 5))
+    ax.set_xlim([-1, 51])
+    ax.set_ylim([-1, 51])
+    ax.set_xticks(range(0, 55, 5))
+    ax.set_yticks(range(0, 55, 5))
 
     ax.set_title("Evaluation of DeepPE2")
     ax.set_xlabel("Measured PE2 efficiency (%)")
