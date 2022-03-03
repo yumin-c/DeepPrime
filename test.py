@@ -2,25 +2,24 @@
 # ├── data # PUT DATA HERE
 # │   ├── genes
 # │   ├── Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv
-# │   ├── DeepPrime_input_PEmax_220228
-# │   ├── DeepPrime_Nat_Liu_endo_PE2only_220303
+# │   ├── DeepPrime_input_PEmax_220228.csv
+# │   ├── DeepPrime_Nat_Liu_endo_PE2only_220303.csv
 # │   ├── ...
 # │   ├── DeepPrime_PECV__train_220214.csv
 # │   ├── DeepPrime_PECV__test_220214.csv
 # │   ├── g_pf.npy
 # │   └── g_train.npy
-# ├── test
-# │   └── models # PUT MODELS HERE
-# │       ├── FM00_0.6410.pt
-# │       ├── FM01_0.6442.pt
-# │       ├── FM02_0.6505.pt
-# │       ├── FM03_0.6333.pt
-# │       └── FM04_0.5675.pt
+# ├── models
+# │   ├── pretrained
+# │   └── test # PUT MODELS HERE
+# │       ├── final_model_0.pt
+# │       ├── final_model_1.pt
+# │       ├── final_model_2.pt
+# │       └── ...
 # ├── plots
-# │   └── test
 # ├── results
-# │   └── test
 # ├── DeepPE.py
+# ├── DeepPE_finalize.py
 # ├── plot.py
 # └── test.py # THIS FILE
 

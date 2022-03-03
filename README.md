@@ -2,30 +2,28 @@
 
 ### Currently working on:
 * Improving [DeepPE](http://deepcrispr.info/DeepPE/) using a Conv2D-RNN-based model.
-* Fine-tuning using a biased external data that tested various pegRNA combinations
+* Evaluating DeepPE performance on various datasets.
 ### Directory tree
 ```bash
-├── data
+├── data # PUT DATA HERE
+│   ├── genes # folder for preprocessed gene files (.npy)
 │   ├── Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv # PE profiling dataset with a small diversity of target genes.
-│   ├── DeepPrime_PECV__test_220214.csv # PECV test dataset.
+│   ├── DeepPrime_input_PEmax_220228.csv
+│   ├── DeepPrime_Nat_Liu_endo_PE2only_220303.csv
+│   ├── ...
 │   ├── DeepPrime_PECV__train_220214.csv # PECV train dataset.
+│   ├── DeepPrime_PECV__test_220214.csv  # PECV test dataset.
 │   ├── g_pf.npy
-│   ├── g_test.npy
 │   └── g_train.npy
+├── models
+│   ├── test # models for performance evaluation.
+│   └── pretrained
+├── plots
+├── results
 ├── DeepPE.py # main train file with 5-fold cv.
 ├── DeepPE_finalize.py # final train code without cross-validation.
 ├── plot.py # code for plotting.
 └── test.py # code for testing.
 ```
 ### Current model performance
-**DeepPE2 performance plot**
-![spearmanPlot](./plots/Evaluation%20of%20DeepPE2.jpg)
-
-**Prediction for substitution only**
-![subPlot](./plots/Evaluation%20of%20substitution.jpg)
-
-**Prediction for insertion only**
-![insPlot](./plots/Evaluation%20of%20insertion.jpg)
-
-**Prediction for deletion only**
-![delPlot](./plots/Evaluation%20of%20deletion.jpg)
+Check out in `plots/`.
