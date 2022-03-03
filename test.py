@@ -96,10 +96,10 @@ for file in file_list:
 
     models, preds = [], []
 
-    for (path, dir, files) in os.walk('test/models/'):
+    for (path, dir, files) in os.walk('models/test/'):
         for filename in files:
             if filename[-3:] == '.pt':
-                models.append('test/models/' + filename)
+                models.append('models/test/' + filename)
 
 
     # TEST
