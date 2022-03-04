@@ -100,8 +100,8 @@ class BalancedMSELoss(nn.Module):
         elif mode == 'finetuning':
             self.factor = [1, 0.7, 0.6]
 
-        # self.mse = nn.MSELoss()
-        self.mse = ScaledMSELoss()
+        self.mse = nn.MSELoss()
+        # self.mse = ScaledMSELoss()
 
     def forward(self, pred, actual):
         pred = pred.view(-1, 1)
@@ -120,7 +120,6 @@ class ScaledMSELoss(nn.Module):
         super(ScaledMSELoss, self).__init__()
 
     def forward(self, pred, y):
-        # mu = torch.minimum(torch.exp(7 * (y-2.8)) + 1, torch.ones_like(y) * 25) # inverse
         mu = torch.minimum(torch.exp(6 * (y-3)) + 1, torch.ones_like(y) * 5) # SQRT-inverse
 
         return torch.mean(mu * (y-pred) ** 2)
