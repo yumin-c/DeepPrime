@@ -1,12 +1,9 @@
-import sys
 import os
 
 import numpy as np
 import pandas as pd
 
 import torch
-import torch.nn.functional as F
-import torch.nn as nn
 from torch.optim import AdamW, lr_scheduler
 
 from torch.utils.data import DataLoader
@@ -93,7 +90,7 @@ if __name__ == '__main__':
     hidden_size = 128
     n_layers = 1
     n_epochs = 10
-    n_models = 10
+    n_models = 20
 
     use_pretrained = False
 
@@ -109,8 +106,7 @@ if __name__ == '__main__':
         torch.cuda.manual_seed_all(random_seed)
         np.random.seed(random_seed)
 
-        model = GeneInteractionModel(
-            hidden_size=hidden_size, num_layers=n_layers).to(device)
+        model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
 
         train_set = GeneFeatureDataset(g_train, x_train, y_train)
         train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
@@ -120,8 +116,9 @@ if __name__ == '__main__':
         scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
 
         n_iters = len(train_loader)
+        pbar = tqdm(range(n_epochs))
 
-        for epoch in tqdm(range(n_epochs)):
+        for epoch in pbar:
             train_loss = []
             train_count = 0
 
@@ -141,6 +138,6 @@ if __name__ == '__main__':
                 train_count += x.size(0)
 
             train_loss = sum(train_loss) / train_count
-            print(train_loss)
+            pbar.set_description('M{:02} | {:.4}'.format(m, train_loss))
 
         torch.save(model.state_dict(),'models/final_model_{}.pt'.format(m))

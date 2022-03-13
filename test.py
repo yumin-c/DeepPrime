@@ -60,7 +60,8 @@ file_list = ['DeepPrime_PECV__test_220214.csv',
              'DeepPrime_Nat_Liu_endo_PE2only_TriAve_Fig3b_220303.csv',
              'DeepPrime_Nat_Liu_endo_PE2only_TriAve_Fig3c_220303.csv',
              'DeepPrime_input_PEmax_220303.csv',
-             # 'Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv'
+             'DeepPrime_input_HT-56K_220304.csv',
+             'Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv'
              ]
 
 for file in file_list:
