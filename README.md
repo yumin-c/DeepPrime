@@ -1,5 +1,5 @@
 ## Introduction
-DeepPE2 is a deep-learning based prime editing efficiency prediction tool developed in [Laboratory of Genome Editing, Yonsei University](https://sites.google.com/site/hyongbumkimlab/home). It is a sequel to [DeepPE](https://www.nature.com/articles/s41587-020-0677-y), which was developed to predict prime editing efficiencies of a limited number of length combinations.
+DeepPE2 is a deep-learning based prime editing efficiency prediction tool developed in [Laboratory of Genome Editing, Yonsei University](https://sites.google.com/site/hyongbumkimlab/home). It is a sucessor to [DeepPE](https://www.nature.com/articles/s41587-020-0677-y), which was developed to predict prime editing efficiencies of a limited number of length combinations.
 
 ## What's New
 * DeepPE2 is designed to predict the efficiency of a wide variety of pegRNA combinations.
