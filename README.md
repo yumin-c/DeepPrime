@@ -7,7 +7,7 @@ DeepPE2 is a deep-learning-based prime editing efficiency prediction tool develo
 * The model was trained using 259K pegRNAs with PBS lengths ranging from 1 to 17, RT lengths ranging from 1 to 50, Edit positions ranging from 1 to 30, and editing lengths ranging from 1 to 3.
 
 ## Progress
-* DeepPE2 for pegRNA-based on-target prime editing efficiency prediction on HEK293T cell line is available (`DeepPE.py`).
+* DeepPE2 for pegRNA-based on-target prime editing efficiency prediction on HEK293T cell line is now available.
 * DeepPE performance on various external data was released (`data/`).
 * Currently developing DeepPE for different cell lines and different PE techniques.
 * Off-target edit probability prediction model will be developed.
