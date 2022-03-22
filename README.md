@@ -29,10 +29,10 @@ DeepPE2 is a deep-learning-based prime editing efficiency prediction tool develo
 │   └── pretrained
 ├── plots
 ├── results
-├── DeepPE.py # main train file with 5-fold cv.
-├── DeepPE_finalize.py # final train code without cross-validation.
-├── plot.py # code for plotting.
-└── test.py # code for testing.
+├── train.py # final train code without cross-validation.
+├── validate.py # main train file with 5-fold cv.
+├── model.py
+└── utils.py
 ```
 
 ## Performance
