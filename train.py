@@ -1,14 +1,11 @@
 import os
-
 import numpy as np
 import pandas as pd
-
 import torch
 from torch.optim import AdamW, lr_scheduler
-
 from torch.utils.data import DataLoader
-from DeepPE import GeneInteractionModel, BalancedMSELoss, GeneFeatureDataset, seq_concat
-
+from utils import GeneFeatureDataset, seq_concat, select_cols
+from model import GeneInteractionModel, BalancedMSELoss
 from tqdm import tqdm
 
 
@@ -40,20 +37,11 @@ if __name__ == '__main__':
 
     # FEATURE SELECTION
 
-    train_features = train_PECV.loc[:, ['PBSlen', 'RTlen', 'RT-PBSlen', 'Edit_pos', 'Edit_len', 'RHA_len', 'type_sub',
-                                        'type_ins', 'type_del', 'Tm1', 'Tm2', 'Tm2new', 'Tm3', 'Tm4', 'TmD',
-                                        'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3',
-                                        'MFE1', 'MFE2', 'MFE3', 'MFE4', 'MFE5', 'DeepSpCas9_score']]
+    train_features, train_target = select_cols(train_PECV)
     train_fold = train_PECV.Fold
-    train_target = train_PECV.Measured_PE_efficiency
-
-    test_features = test_PECV.loc[:, ['PBSlen', 'RTlen', 'RT-PBSlen', 'Edit_pos', 'Edit_len', 'RHA_len', 'type_sub',
-                                      'type_ins', 'type_del', 'Tm1', 'Tm2', 'Tm2new', 'Tm3', 'Tm4', 'TmD',
-                                      'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3',
-                                      'MFE1', 'MFE2', 'MFE3', 'MFE4', 'MFE5', 'DeepSpCas9_score']]
-    test_target = test_PECV.Measured_PE_efficiency
-
     train_type = train_PECV.loc[:, ['type_sub', 'type_ins', 'type_del']]
+
+    test_features, test_target = select_cols(test_PECV)
     test_type = test_PECV.loc[:, ['type_sub', 'type_ins', 'type_del']]
 
 
@@ -90,7 +78,7 @@ if __name__ == '__main__':
     hidden_size = 128
     n_layers = 1
     n_epochs = 10
-    n_models = 20
+    n_models = 10
 
     use_pretrained = False
 

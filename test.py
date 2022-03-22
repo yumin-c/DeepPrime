@@ -31,21 +31,12 @@ import pandas as pd
 
 import torch
 
-from DeepPE import GeneInteractionModel, seq_concat
 import plot
+from model import GeneInteractionModel
+from utils import seq_concat, select_cols
 
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-
-
-def select_cols(data):
-    features = data.loc[:, ['PBSlen', 'RTlen', 'RT-PBSlen', 'Edit_pos', 'Edit_len', 'RHA_len', 'type_sub',
-                            'type_ins', 'type_del', 'Tm1', 'Tm2', 'Tm2new', 'Tm3', 'Tm4', 'TmD',
-                            'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3',
-                            'MFE1', 'MFE2', 'MFE3', 'MFE4', 'MFE5', 'DeepSpCas9_score']]
-    target = data.Measured_PE_efficiency
-
-    return features, target
 
 
 # PREPROCESSING
@@ -120,6 +111,10 @@ for file in file_list:
 
             g = g.permute((0, 3, 1, 2))
             y = y.reshape(-1, 1)
+
+            # x[:, 6:9] = 0
+            x[:, -6:-1] = 0 # MFE
+            # x[:, -1] = 0 # DeepSpCas9
 
             pred = model(g, x)
 
