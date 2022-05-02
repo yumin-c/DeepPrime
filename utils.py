@@ -10,7 +10,7 @@ def preprocess_seq(data):
     print("Start preprocessing the sequence done 2d")
     length = 74
 
-    DATA_X = np.zeros((len(data), 1, length, 4), dtype=float)
+    seq_onehot = np.zeros((len(data), 1, length, 4), dtype=float)
     print(np.shape(data), len(data), length)
     for l in tqdm(range(len(data))):
         for i in range(length):
@@ -21,13 +21,13 @@ def preprocess_seq(data):
                 print(data[l], i, length, len(data))
 
             if data[l][i] in "Aa":
-                DATA_X[l, 0, i, 0] = 1
+                seq_onehot[l, 0, i, 0] = 1
             elif data[l][i] in "Cc":
-                DATA_X[l, 0, i, 1] = 1
+                seq_onehot[l, 0, i, 1] = 1
             elif data[l][i] in "Gg":
-                DATA_X[l, 0, i, 2] = 1
+                seq_onehot[l, 0, i, 2] = 1
             elif data[l][i] in "Tt":
-                DATA_X[l, 0, i, 3] = 1
+                seq_onehot[l, 0, i, 3] = 1
             elif data[l][i] in "Xx":
                 pass
             else:
@@ -37,12 +37,12 @@ def preprocess_seq(data):
                 sys.exit()
 
     print("Preprocessed the sequence")
-    return DATA_X
+    return seq_onehot
 
 
-def seq_concat(data):
-    wt = preprocess_seq(data.WT74_On)
-    ed = preprocess_seq(data.Edited74_On)
+def seq_concat(data, col1='WT74_On', col2='Edited74_On'):
+    wt = preprocess_seq(data[col1])
+    ed = preprocess_seq(data[col2])
     g = np.concatenate((wt, ed), axis=1)
     g = 2 * g - 1
 
@@ -52,10 +52,12 @@ def seq_concat(data):
 def select_cols(data):
     features = data.loc[:, ['PBSlen', 'RTlen', 'RT-PBSlen', 'Edit_pos', 'Edit_len', 'RHA_len', 'type_sub',
                             'type_ins', 'type_del', 'Tm1', 'Tm2', 'Tm2new', 'Tm3', 'Tm4', 'TmD',
-                            'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3',
-                            'MFE1', 'MFE2', 'MFE3', 'MFE4', 'MFE5', 'DeepSpCas9_score']]
-    target = data.Measured_PE_efficiency
-
+                            'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3', 'MFE3', 'MFE4', 'DeepSpCas9_score']]
+    if 'Measured_PE_efficiency' in data.columns:
+        target = data['Measured_PE_efficiency']
+    else:
+        target = data['Predicted_PE_efficiency'] * data['Relative_effi']
+        
     return features, target
 
 
@@ -93,9 +95,9 @@ class GeneFeatureDataset(Dataset):
                     selected_indices.append(i)
         elif self.mode == 'train':  # SELECT OTHERS
             for i in range(len(self.fold_list)):
-                if self.fold_list[i] != self.fold:
+                if self.fold_list[i] != self.fold and self.fold_list[i] != 'Test':
                     selected_indices.append(i)
-        else:  # FOR FINALIZING
+        elif self.mode == 'finalizing':  # FOR FINALIZING
             for i in range(len(self.fold_list)):
                 selected_indices.append(i)
 

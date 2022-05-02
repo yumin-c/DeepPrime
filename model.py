@@ -42,7 +42,7 @@ class GeneInteractionModel(nn.Module):
         self.s = nn.Linear(2 * hidden_size, 12, bias=False)
 
         self.d = nn.Sequential(
-            nn.Linear(27, 96, bias=False),
+            nn.Linear(24, 96, bias=False),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(96, 64, bias=False),
@@ -72,13 +72,10 @@ class GeneInteractionModel(nn.Module):
 
 class BalancedMSELoss(nn.Module):
 
-    def __init__(self, mode='pretrain', scale=True):
+    def __init__(self, scale=True):
         super(BalancedMSELoss, self).__init__()
 
-        if mode == 'pretrain':
-            self.factor = [1, 1, 0.7]
-        elif mode == 'finetuning':
-            self.factor = [1, 0.7, 0.6]
+        self.factor = [1, 0.7, 0.6]
 
         self.mse = nn.MSELoss()
         if scale:
