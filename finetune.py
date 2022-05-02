@@ -1,5 +1,3 @@
-# An file for on-target DeepPE (pre-)training.
-
 import os
 import numpy as np
 import pandas as pd
@@ -18,25 +16,37 @@ torch.backends.cudnn.benchmark = False
 
 # LOAD & PREPROCESS GENES
 
-train_PECV = pd.read_csv('data/DeepPrime_PECV__train_220214.csv')
+fileidx = 0
 
-if not os.path.isfile('data/g_train.npy'):
-    g_train = seq_concat(train_PECV)
-    np.save('data/g_train.npy', g_train)
+files = ['DP_variant_293T_PE2_Conv_220428.csv',
+         'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
+         'DP_variant_293T_PE2max_Opti_220428.csv',
+         'DP_variant_HCT116_PE2_Opti_220428.csv',
+         'DP_variant_MDA_PE2_Opti_220428.csv']
+
+file = files[fileidx]
+
+finetune_data = pd.read_csv('data/' + file)
+
+gene_path = 'data/genes/' + file[:-4] + '.npy'
+
+if not os.path.isfile(gene_path):
+    g_train = seq_concat(finetune_data)
+    np.save(gene_path, g_train)
 else:
-    g_train = np.load('data/g_train.npy')
+    g_train = np.load(gene_path)
 
 
 # FEATURE SELECTION
 
-train_features, train_target = select_cols(train_PECV)
-train_fold = train_PECV.Fold
-train_type = train_PECV.loc[:, ['type_sub', 'type_ins', 'type_del']]
+train_features, train_target = select_cols(finetune_data)
+train_fold = finetune_data.Fold
+train_type = finetune_data.loc[:, ['type_sub', 'type_ins', 'type_del']]
 
 
 # NORMALIZATION
 
-x_train = (train_features - train_features.mean()) / train_features.std()
+x_train = (train_features - train_features.mean()) / train_features.std() # fit to finetuning data distribution.
 y_train = train_target
 y_train = pd.concat([y_train, train_type], axis=1)
 
@@ -47,15 +57,27 @@ y_train = torch.tensor(y_train.to_numpy(), dtype=torch.float32, device=device)
 
 # PARAMS
 
-batch_size = 2048
-learning_rate = 5e-3
-weight_decay = 5e-2
-T_0 = 10
-T_mult = 1
+batch_size = 512
 hidden_size = 128
 n_layers = 1
-n_epochs = 10
+n_epochs = 100
 n_models = 20
+
+if fileidx == 0:
+    learning_rate = 1e-3
+    weight_decay = 0e-2
+elif fileidx == 1:
+    learning_rate = 5e-4
+    weight_decay = 0e-2
+elif fileidx == 2:
+    learning_rate = 1e-4
+    weight_decay = 0e-2
+elif fileidx == 3:
+    learning_rate = 1e-3
+    weight_decay = 0e-2
+elif fileidx == 4:
+    learning_rate = 5e-4 
+    weight_decay = 0e-2
 
 
 # TRAINING
@@ -71,14 +93,17 @@ for m in range(n_models):
 
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-    train_set = GeneFeatureDataset(g_train, x_train, y_train)
+    model.load_state_dict(torch.load('models/ontarget/mfe34/final_model_{}.pt'.format(m)))
+
+    for name, param in model.named_parameters():
+        if name.startswith('c'):
+            param.requires_grad = False
+
+    train_set = GeneFeatureDataset(g_train, x_train, y_train, fold_list=train_fold)
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
     criterion = BalancedMSELoss()
     optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
-
-    n_iters = len(train_loader)
 
     pbar = tqdm(range(n_epochs))
     for epoch in pbar:
@@ -95,7 +120,6 @@ for m in range(n_models):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            scheduler.step(epoch + i / n_iters)
 
             train_loss.append(x.size(0) * loss.detach().cpu().numpy())
             train_count += x.size(0)
@@ -103,4 +127,4 @@ for m in range(n_models):
         train_loss = sum(train_loss) / train_count
         pbar.set_description('M {:02} | {:.4}'.format(m, train_loss))
 
-    torch.save(model.state_dict(),'models/ontarget/mfe34/final_model_{}.pt'.format(random_seed))
+    torch.save(model.state_dict(),'models/on_ft/{}/final_model_{}.pt'.format(file[:-4], random_seed))
