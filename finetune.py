@@ -57,27 +57,37 @@ y_train = torch.tensor(y_train.to_numpy(), dtype=torch.float32, device=device)
 
 # PARAMS
 
+freeze_conv = True
 batch_size = 512
 hidden_size = 128
 n_layers = 1
-n_epochs = 100
 n_models = 20
 
 if fileidx == 0:
-    learning_rate = 1e-3
-    weight_decay = 0e-2
-elif fileidx == 1:
+    freeze_conv = False
     learning_rate = 5e-4
     weight_decay = 0e-2
-elif fileidx == 2:
-    learning_rate = 1e-4
-    weight_decay = 0e-2
-elif fileidx == 3:
+    n_epochs = 100
+elif fileidx == 1:
+    freeze_conv = False
     learning_rate = 1e-3
     weight_decay = 0e-2
-elif fileidx == 4:
-    learning_rate = 5e-4 
+    n_epochs = 100
+elif fileidx == 2:
+    freeze_conv = False
+    learning_rate = 5e-4
     weight_decay = 0e-2
+    n_epochs = 100
+elif fileidx == 3:
+    freeze_conv = False
+    learning_rate = 5e-4
+    weight_decay = 0e-2
+    n_epochs = 50
+elif fileidx == 4:
+    freeze_conv = False
+    learning_rate = 5e-4
+    weight_decay = 0e-2
+    n_epochs = 100
 
 
 # TRAINING
@@ -94,10 +104,11 @@ for m in range(n_models):
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
 
     model.load_state_dict(torch.load('models/ontarget/mfe34/final_model_{}.pt'.format(m)))
-
-    for name, param in model.named_parameters():
-        if name.startswith('c'):
-            param.requires_grad = False
+    
+    if freeze_conv:
+        for name, param in model.named_parameters():
+            if name.startswith('c'):
+                param.requires_grad = False
 
     train_set = GeneFeatureDataset(g_train, x_train, y_train, fold_list=train_fold)
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)

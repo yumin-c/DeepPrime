@@ -28,5 +28,5 @@ def plot_spearman(pred = None, y = None, filename = None, title = "Evaluation of
                 verticalalignment='bottom')
     
     if filename is not None:
-        plt.savefig(filename, bbox_inches="tight", dpi=600)
+        plt.savefig(filename, bbox_inches="tight", dpi=200)
     return plt

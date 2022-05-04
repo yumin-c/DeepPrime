@@ -17,7 +17,7 @@ torch.backends.cudnn.benchmark = False
 
 # LOAD & PREPROCESS GENES
 
-fileidx = 4
+fileidx = 0
 
 files = ['DP_variant_293T_PE2_Conv_220428.csv',
          'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
@@ -59,27 +59,37 @@ y_train = torch.tensor(y_train.to_numpy(), dtype=torch.float32, device=device)
 
 # PARAMS
 
+freeze_conv = True
 batch_size = 512
 hidden_size = 128
 n_layers = 1
-n_epochs = 100
-n_models = 5
+n_models = 20
 
 if fileidx == 0:
-    learning_rate = 1e-3
-    weight_decay = 0e-2
-elif fileidx == 1:
+    freeze_conv = False
     learning_rate = 5e-4
     weight_decay = 0e-2
-elif fileidx == 2:
-    learning_rate = 1e-4
-    weight_decay = 0e-2
-elif fileidx == 3:
+    n_epochs = 100
+elif fileidx == 1:
+    freeze_conv = False
     learning_rate = 1e-3
     weight_decay = 0e-2
-elif fileidx == 4:
-    learning_rate = 5e-4 
+    n_epochs = 100
+elif fileidx == 2:
+    freeze_conv = False
+    learning_rate = 5e-4
     weight_decay = 0e-2
+    n_epochs = 100
+elif fileidx == 3:
+    freeze_conv = False
+    learning_rate = 5e-4
+    weight_decay = 0e-2
+    n_epochs = 50
+elif fileidx == 4:
+    freeze_conv = False
+    learning_rate = 5e-4
+    weight_decay = 0e-2
+    n_epochs = 100
 
 
 # TRAINING & VALIDATION
@@ -101,9 +111,10 @@ for m in range(n_models):
 
         model.load_state_dict(torch.load('models/ontarget/mfe34/final_model_{}.pt'.format(m)))
 
-        for name, param in model.named_parameters():
-            if name.startswith('c'):
-                param.requires_grad = False
+        if freeze_conv:
+            for name, param in model.named_parameters():
+                if name.startswith('c'):
+                    param.requires_grad = False
 
         train_set = GeneFeatureDataset(g_train, x_train, y_train, str(fold), 'train', train_fold)
         valid_set = GeneFeatureDataset(g_train, x_train, y_train, str(fold), 'valid', train_fold)
@@ -113,6 +124,9 @@ for m in range(n_models):
 
         criterion = BalancedMSELoss()
         optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        # scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
+
+        n_iters = len(train_loader)
 
         pbar = tqdm(range(n_epochs))
         for epoch in pbar:
@@ -131,6 +145,7 @@ for m in range(n_models):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+                # scheduler.step(epoch + i / n_iters)
 
                 train_loss.append(x.size(0) * loss.detach().cpu().numpy())
                 train_count += x.size(0)
@@ -165,8 +180,8 @@ for m in range(n_models):
             if valid_loss < best_score[1]:
                 best_score = [train_loss, valid_loss, R]
 
-                torch.save(model.state_dict(), 'models/on_ft/{}/{:02}_auxiliary.pt'.format(file[:-4], fold))
+                # torch.save(model.state_dict(), 'models/on_ft/{}/{:02}_auxiliary.pt'.format(file[:-4], fold))
 
             pbar.set_description('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1, n_models, epoch + 1, n_epochs, train_loss, valid_loss, R))
 
-        os.rename('models/on_ft/{}/{:02}_auxiliary.pt'.format(file[:-4], fold), 'models/on_ft/{}/{:02}_{}.pt'.format(file[:-4], fold, m))
+        # os.rename('models/on_ft/{}/{:02}_auxiliary.pt'.format(file[:-4], fold), 'models/on_ft/{}/{:02}_{}.pt'.format(file[:-4], fold, m))

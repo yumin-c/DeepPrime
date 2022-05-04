@@ -21,7 +21,8 @@ file_list = ['DP_variant_293T_PE2_Conv_220428.csv',
              'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
              'DP_variant_293T_PE2max_Opti_220428.csv',
              'DP_variant_HCT116_PE2_Opti_220428.csv',
-             'DP_variant_MDA_PE2_Opti_220428.csv']
+             'DP_variant_MDA_PE2_Opti_220428.csv',
+             ]
 
 for file in file_list:
 
