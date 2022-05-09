@@ -17,7 +17,7 @@ torch.backends.cudnn.benchmark = False
 
 # LOAD & PREPROCESS GENES
 
-fileidx = 0
+fileidx = 2
 
 files = ['DP_variant_293T_PE2_Conv_220428.csv',
          'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
@@ -76,8 +76,8 @@ elif fileidx == 1:
     weight_decay = 0e-2
     n_epochs = 100
 elif fileidx == 2:
-    freeze_conv = False
-    learning_rate = 5e-4
+    freeze_conv = True
+    learning_rate = 5e-3
     weight_decay = 0e-2
     n_epochs = 100
 elif fileidx == 3:
@@ -113,8 +113,9 @@ for m in range(n_models):
 
         if freeze_conv:
             for name, param in model.named_parameters():
-                if name.startswith('c'):
+                if not name.startswith('head'):
                     param.requires_grad = False
+                    print(name)
 
         train_set = GeneFeatureDataset(g_train, x_train, y_train, str(fold), 'train', train_fold)
         valid_set = GeneFeatureDataset(g_train, x_train, y_train, str(fold), 'valid', train_fold)

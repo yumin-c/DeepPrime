@@ -5,7 +5,7 @@ import torch.nn as nn
 
 class GeneInteractionModel(nn.Module):
 
-    def __init__(self, hidden_size, num_layers):
+    def __init__(self, hidden_size, num_layers, num_features=24):
         super(GeneInteractionModel, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -42,7 +42,7 @@ class GeneInteractionModel(nn.Module):
         self.s = nn.Linear(2 * hidden_size, 12, bias=False)
 
         self.d = nn.Sequential(
-            nn.Linear(24, 96, bias=False),
+            nn.Linear(num_features, 96, bias=False),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(96, 64, bias=False),
@@ -90,6 +90,21 @@ class BalancedMSELoss(nn.Module):
         l3 = self.mse(pred[actual[:, 3] == 1], y[actual[:, 3] == 1]) * self.factor[2]
 
         return l1 + l2 + l3
+
+
+class MSLELoss(nn.Module):
+
+    def __init__(self):
+        super(MSLELoss, self).__init__()
+
+        self.mse = nn.MSELoss()
+
+    def forward(self, pred, actual):
+        y = torch.log1p(actual.view(-1, 1))
+
+        loss = self.mse(pred, y)
+
+        return loss
 
 
 class ScaledMSELoss(nn.Module):

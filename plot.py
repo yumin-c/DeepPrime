@@ -10,12 +10,17 @@ def plot_spearman(pred = None, y = None, filename = None, title = "Evaluation of
 
     _, ax = plt.subplots(figsize=(6, 6))
 
-    ax.scatter(y, pred, s=0.1)
+    ax.scatter(y, pred, s=2, alpha=0.4)
     
     ax.set_xlim([-1, 51])
     ax.set_ylim([-1, 51])
     ax.set_xticks(range(0, 55, 5))
     ax.set_yticks(range(0, 55, 5))
+
+    ax.set_xlim([-1, 101])
+    ax.set_ylim([-1, 101])
+    ax.set_xticks(range(0, 110, 10))
+    ax.set_yticks(range(0, 110, 10))
 
     ax.set_title(title)
     ax.set_xlabel("Measured PE2 efficiency (%)")

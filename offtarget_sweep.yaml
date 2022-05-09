@@ -1,0 +1,17 @@
+program: offtarget_valid.py
+project: offtarget
+method: bayes
+metric:
+  goal: maximize
+  name: Best R
+parameters:
+  batch_size:
+    values: [64, 128, 256, 512, 1024, 2048]
+  learning_rate:
+    values: [5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2]
+  weight_decay:
+    values: [5e-3, 1e-2, 2e-2, 5e-2]
+early_terminate:
+  type: hyperband
+  eta: 2
+  min_iter: 3

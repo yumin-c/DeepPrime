@@ -17,7 +17,8 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
 
-file_list = ['DeepPrime_PECV__test_220214.csv',
+file_list = [
+             'DeepPrime_PECV__test_220214.csv',
              'DeepPrime_Nat_Liu_endo_PE2only_220303.csv',
              'DeepPrime_Nat_Liu_endo_PE2only_TriAve_220303.csv',
              'DeepPrime_Nat_Liu_endo_PE2only_TriAve_ExtFig5_220303.csv',
@@ -28,7 +29,8 @@ file_list = ['DeepPrime_PECV__test_220214.csv',
              'DeepPrime_Nat_Liu_endo_PE2only_TriAve_Fig3c_220303.csv',
              'DeepPrime_input_PEmax_220303.csv',
              'DeepPrime_input_HT-56K_220304.csv',
-             'Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv'
+             'Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv',
+            #  'DP_variant_293T_PE2max_Opti_220428.csv',
              ]
 
 for file in file_list:

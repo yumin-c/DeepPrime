@@ -59,7 +59,7 @@ n_models = 10
 use_pretrained = False
 
 
-# TRAINING & VALIDATION
+# TRAIN & VALIDATION
 
 for m in range(n_models):
 
