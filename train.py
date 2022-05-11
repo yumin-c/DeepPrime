@@ -21,7 +21,7 @@ torch.backends.cudnn.benchmark = False
 train_file = pd.read_csv('data/DeepPrime_dataset_final_Feat8.csv')
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
-gene_path = 'data/g_final_Feat8.csv'
+gene_path = 'data/g_final_Feat8.npy'
 
 if not os.path.isfile(gene_path):
     g_train = seq_concat(train_file)
@@ -58,7 +58,7 @@ T_mult = 1
 hidden_size = 128
 n_layers = 1
 n_epochs = 10
-n_models = 20
+n_models = 5
 
 
 # TRAINING
@@ -74,9 +74,7 @@ for m in range(n_models):
 
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-    print(len(g_train))
     train_set = GeneFeatureDataset(g_train, x_train, y_train, fold_list=train_fold)
-    print(len(train_set))
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
     criterion = BalancedMSELoss()

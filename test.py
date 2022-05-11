@@ -18,7 +18,7 @@ mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
 
 file_list = [
-             'DeepPrime_PECV__test_220214.csv',
+             'DeepPrime_dataset_final_Feat8.csv',
              'DeepPrime_Nat_Liu_endo_PE2only_220303.csv',
              'DeepPrime_Nat_Liu_endo_PE2only_TriAve_220303.csv',
              'DeepPrime_Nat_Liu_endo_PE2only_TriAve_ExtFig5_220303.csv',
@@ -29,7 +29,7 @@ file_list = [
              'DeepPrime_Nat_Liu_endo_PE2only_TriAve_Fig3c_220303.csv',
              'DeepPrime_input_PEmax_220303.csv',
              'DeepPrime_input_HT-56K_220304.csv',
-             'Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv',
+            #  'Biofeature_output_Profiling_220205_PE_effi_for_CYM.csv',
             #  'DP_variant_293T_PE2max_Opti_220428.csv',
              ]
 
@@ -41,6 +41,7 @@ for file in file_list:
         test_file = test_file[test_file['PE2'] == 'O'].reset_index(drop=True)
 
     test_features, test_target = select_cols(test_file)
+    test_fold = test_file.Fold
 
     gene_path = 'data/genes/' + file[:-4] + '.npy'
 
@@ -53,6 +54,12 @@ for file in file_list:
     x_test = (test_features - mean) / std
     y_test = test_target
 
+    test_idx = test_fold == 'Test'
+
+    g_test = g_test[test_idx]
+    x_test = x_test[test_idx]
+    y_test = y_test[test_idx]
+
     g_test = torch.tensor(g_test, dtype=torch.float32, device=device)
     x_test = torch.tensor(x_test.to_numpy(), dtype=torch.float32, device=device)
     y_test = torch.tensor(y_test.to_numpy(), dtype=torch.float32, device=device)
@@ -62,10 +69,10 @@ for file in file_list:
 
     models, preds = [], []
 
-    for (path, dir, files) in os.walk('models/test/'):
+    for (path, dir, files) in os.walk('models/ontarget/final/'):
         for filename in files:
             if filename[-3:] == '.pt':
-                models.append('models/test/' + filename)
+                models.append('models/ontarget/final/' + filename)
 
 
     # TEST
