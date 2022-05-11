@@ -3,9 +3,9 @@
 import pandas as pd
 from utils import select_cols
 
-train_PECV = pd.read_csv('data/DeepPrime_PECV__train_220214.csv')
+train_file = pd.read_csv('data/DeepPrime_dataset_final_Feat8.csv')
 
-train_features, _ = select_cols(train_PECV)
+train_features, _ = select_cols(train_file[train_file['Fold']!='Test'])
 
 mean, std = train_features.mean(), train_features.std()
 

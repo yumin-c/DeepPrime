@@ -18,25 +18,28 @@ torch.backends.cudnn.benchmark = False
 
 # LOAD & PREPROCESS GENES
 
-train_PECV = pd.read_csv('data/DeepPrime_PECV__train_220214.csv')
+train_file = pd.read_csv('data/DeepPrime_dataset_final_Feat8.csv')
+mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
+std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
+gene_path = 'data/g_final_Feat8.csv'
 
-if not os.path.isfile('data/g_train.npy'):
-    g_train = seq_concat(train_PECV)
-    np.save('data/g_train.npy', g_train)
+if not os.path.isfile(gene_path):
+    g_train = seq_concat(train_file)
+    np.save(gene_path, g_train)
 else:
-    g_train = np.load('data/g_train.npy')
+    g_train = np.load(gene_path)
 
 
 # FEATURE SELECTION
 
-train_features, train_target = select_cols(train_PECV)
-train_fold = train_PECV.Fold
-train_type = train_PECV.loc[:, ['type_sub', 'type_ins', 'type_del']]
+train_features, train_target = select_cols(train_file)
+train_fold = train_file.Fold
+train_type = train_file.loc[:, ['type_sub', 'type_ins', 'type_del']]
 
 
 # NORMALIZATION
 
-x_train = (train_features - train_features.mean()) / train_features.std()
+x_train = (train_features - mean) / std
 y_train = train_target
 y_train = pd.concat([y_train, train_type], axis=1)
 
@@ -71,7 +74,9 @@ for m in range(n_models):
 
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-    train_set = GeneFeatureDataset(g_train, x_train, y_train)
+    print(len(g_train))
+    train_set = GeneFeatureDataset(g_train, x_train, y_train, fold_list=train_fold)
+    print(len(train_set))
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
     criterion = BalancedMSELoss()
@@ -103,4 +108,4 @@ for m in range(n_models):
         train_loss = sum(train_loss) / train_count
         pbar.set_description('M {:02} | {:.4}'.format(m, train_loss))
 
-    torch.save(model.state_dict(),'models/ontarget/mfe34/final_model_{}.pt'.format(random_seed))
+    torch.save(model.state_dict(),'models/ontarget/final/model_{}.pt'.format(random_seed))
