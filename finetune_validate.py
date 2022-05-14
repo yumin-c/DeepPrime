@@ -109,7 +109,7 @@ for m in range(n_models):
 
         model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-        model.load_state_dict(torch.load('models/ontarget/mfe34/final_model_{}.pt'.format(m)))
+        model.load_state_dict(torch.load('models/ontarget/final_model_{}.pt'.format(m)))
 
         if freeze_conv:
             for name, param in model.named_parameters():

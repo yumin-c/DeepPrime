@@ -1,8 +1,9 @@
-# %%
 import os
+from tkinter import Y
 import numpy as np
 import pandas as pd
 import torch
+import yaml
 import plot
 from scipy import stats
 from model import GeneInteractionModel
@@ -14,23 +15,27 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 # PREPROCESSING
 
 off_data = pd.read_csv('data/DeepOff_dataset_220318.csv')
-off_data = off_data[off_data['Fold'] == 'Test'].reset_index(drop=True)
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
 
-test_features, test_target = select_cols(off_data)
-
-gene_path = 'data/g_off_test.npy'
-
+gene_path = 'data/genes/DeepOff_dataset_220318.npy'
 if not os.path.isfile(gene_path):
-    g_test = seq_concat(off_data, col1='WT74_ref', col2='Edited74_On')
-    np.save(gene_path, g_test)
+    g_off = seq_concat(off_data, col1='WT74_ref', col2='Edited74_On')
+    np.save(gene_path, g_off)
 else:
-    g_test = np.load(gene_path)
+    g_off = np.load(gene_path)
 
+off_features, off_target = select_cols(off_data)
+off_fold = off_data.Fold
 
-x_test = (test_features - mean) / std
-y_test = test_target
+x_off = (off_features - mean) / std
+y_off = off_target
+
+test_idx = off_fold == 'Test'
+
+g_test = g_off[test_idx]
+x_test = x_off[test_idx]
+y_test = y_off[test_idx]
 
 g_test = torch.tensor(g_test, dtype=torch.float32, device=device)
 x_test = torch.tensor(x_test.to_numpy(), dtype=torch.float32, device=device)
@@ -54,11 +59,9 @@ for m in models:
     model.load_state_dict(torch.load(m))
     model.eval()
     with torch.no_grad():
-        g = g_test
+        g = g_test.permute((0, 3, 1, 2))
         x = x_test
-        y = y_test
-        g = g.permute((0, 3, 1, 2)) #[:, :, :, 4:34]
-        y = y.reshape(-1, 1)
+        y = y_test.reshape(-1, 1)
         pred = model(g, x).detach().cpu().numpy()
         y = y.detach().cpu().numpy()
     preds.append(pred)
@@ -71,7 +74,6 @@ preds = np.mean(preds, axis=0)
 preds = np.exp(preds) - 1
 y = y[:, 0]
 
-# %%
 
 # SHOW SCORE
 
@@ -81,13 +83,11 @@ print(stats.spearmanr(preds, y).correlation)
 # SAVE RESULTS
 
 if True:
-    pos_not5 = off_data['Edit_pos'] != 5
+    pos_not5 = (off_data['Edit_pos'] != 5)[test_idx]
     plot.plot_spearman(preds[pos_not5], y[pos_not5], 'plots/offtarget/pos_not5.jpg')
 
 plot.plot_spearman(preds, y, 'plots/offtarget/offtarget.jpg')
 
 preds = pd.DataFrame(preds, columns=['Predicted_PE_efficiency'])
 preds = pd.concat([off_data, preds], axis=1)
-
 preds.to_csv('results/offtarget/offtarget.csv', index=False)
-# %%

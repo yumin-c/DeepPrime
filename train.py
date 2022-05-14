@@ -21,8 +21,8 @@ torch.backends.cudnn.benchmark = False
 train_file = pd.read_csv('data/DeepPrime_dataset_final_Feat8.csv')
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
-gene_path = 'data/g_final_Feat8.npy'
 
+gene_path = 'data/genes/DeepPrime_dataset_final_Feat8.npy'
 if not os.path.isfile(gene_path):
     g_train = seq_concat(train_file)
     np.save(gene_path, g_train)

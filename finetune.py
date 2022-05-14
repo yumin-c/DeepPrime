@@ -16,7 +16,7 @@ torch.backends.cudnn.benchmark = False
 
 # LOAD & PREPROCESS GENES
 
-fileidx = 0
+fileidx = 4
 
 files = ['DP_variant_293T_PE2_Conv_220428.csv',
          'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
@@ -61,7 +61,7 @@ freeze_conv = True
 batch_size = 512
 hidden_size = 128
 n_layers = 1
-n_models = 20
+n_models = 5
 
 if fileidx == 0:
     freeze_conv = False
@@ -103,7 +103,7 @@ for m in range(n_models):
 
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-    model.load_state_dict(torch.load('models/ontarget/mfe34/final_model_{}.pt'.format(m)))
+    model.load_state_dict(torch.load('models/ontarget/final_model_{}.pt'.format(m)))
     
     if freeze_conv:
         for name, param in model.named_parameters():
@@ -138,4 +138,4 @@ for m in range(n_models):
         train_loss = sum(train_loss) / train_count
         pbar.set_description('M {:02} | {:.4}'.format(m, train_loss))
 
-    torch.save(model.state_dict(),'models/on_ft/{}/final_model_{}.pt'.format(file[:-4], random_seed))
+    torch.save(model.state_dict(),'models/ontarget_variants/{}/final_model_{}.pt'.format(file[:-4], random_seed))

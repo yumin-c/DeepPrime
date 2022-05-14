@@ -10,7 +10,6 @@ from tqdm import tqdm
 from utils import GeneFeatureDataset, seq_concat, select_cols
 from model import GeneInteractionModel
 
-import wandb
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
@@ -42,16 +41,15 @@ class BalancedMSELoss(nn.Module):
 # LOAD & PREPROCESS GENES
 
 off_data = pd.read_csv('data/DeepOff_dataset_220318.csv')
-off_data = off_data[off_data['Fold'] != 'Test'].reset_index(drop=True)
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
 
-
-if not os.path.isfile('data/g_off.npy'):
+gene_path = 'data/genes/DeepOff_dataset_220318.npy'
+if not os.path.isfile(gene_path):
     g_off = seq_concat(off_data, col1='WT74_ref', col2='Edited74_On')
-    np.save('data/g_off.npy', g_off)
+    np.save(gene_path, g_off)
 else:
-    g_off = np.load('data/g_off.npy')
+    g_off = np.load(gene_path)
 
 
 # FEATURE SELECTION
@@ -74,17 +72,14 @@ y_off = torch.tensor(y_off.to_numpy(), dtype=torch.float32, device=device)
 
 # PARAMS
 
-wandb.init()
-config = wandb.config
-
-batch_size = 2048
-learning_rate = config.learning_rate
-weight_decay = config.weight_decay
+batch_size = 512
+learning_rate = 4e-3
+weight_decay = 1e-4
 hidden_size = 128
 n_layers = 1
-n_epochs = 20
+n_epochs = 10
 n_models = 1
-T_0 = n_epochs
+T_0 = 10
 T_mult = 1
 
 
@@ -99,22 +94,22 @@ for m in range(n_models):
     torch.cuda.manual_seed_all(random_seed)
     np.random.seed(random_seed)
 
-    for fold in range(0):
+    for fold in range(5):
 
         best_score = [10., 10., 0.]
 
-        model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.0).to(device)
-        model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed)))
+        model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.2).to(device)
+        model.load_state_dict(torch.load('models/ontarget/final_model_{}.pt'.format(random_seed)))
 
-        train_set = GeneFeatureDataset(g_off, x_off, y_off, str(fold), 'train', off_fold)
-        valid_set = GeneFeatureDataset(g_off, x_off, y_off, str(fold), 'valid', off_fold)
+        train_set = GeneFeatureDataset(g_off, x_off, y_off, str(fold), 'train', fold_list=off_fold)
+        valid_set = GeneFeatureDataset(g_off, x_off, y_off, str(fold), 'valid', fold_list=off_fold)
 
         train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
         valid_loader = DataLoader(dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
         criterion = BalancedMSELoss()
         optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/10)
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
 
         n_iters = len(train_loader)
 
@@ -177,11 +172,5 @@ for m in range(n_models):
 
             # pbar.set_description('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1, n_models, epoch + 1, n_epochs, train_loss, valid_loss, R))
             print('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1, n_models, epoch + 1, n_epochs, train_loss, valid_loss, R))
-            
-            metrics = {'Train loss': train_loss,
-                       'Valid loss': valid_loss,
-                       'Spearman score': R}
-
-            wandb.log(metrics)
 
         # os.rename('models/offtarget/{:02}_auxiliary.pt'.format(fold), 'models/offtarget/{:02}_{}_{:.4f}_{:.4f}.pt'.format(fold, m, best_score[1], best_score[2]))

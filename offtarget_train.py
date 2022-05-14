@@ -39,22 +39,22 @@ class BalancedMSELoss(nn.Module):
 # LOAD & PREPROCESS GENES
 
 off_data = pd.read_csv('data/DeepOff_dataset_220318.csv')
-off_data = off_data[off_data['Fold'] != 'Test'].reset_index(drop=True)
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
 
-
-if not os.path.isfile('data/g_off.npy'):
+gene_path = 'data/genes/DeepOff_dataset_220318.npy'
+if not os.path.isfile(gene_path):
     g_off = seq_concat(off_data, col1='WT74_ref', col2='Edited74_On')
-    np.save('data/g_off.npy', g_off)
+    np.save(gene_path, g_off)
 else:
-    g_off = np.load('data/g_off.npy')
+    g_off = np.load(gene_path)
 
 
 # FEATURE SELECTION
 
 off_features, off_target = select_cols(off_data)
 off_rha = off_data['RHA_len']
+off_fold = off_data.Fold
 
 
 # NORMALIZATION
@@ -72,11 +72,13 @@ y_off = torch.tensor(y_off.to_numpy(), dtype=torch.float32, device=device)
 
 batch_size = 512
 learning_rate = 4e-3
-weight_decay = 2e-2
+weight_decay = 1e-4
 hidden_size = 128
 n_layers = 1
 n_epochs = 10
-n_models = 20
+n_models = 5
+T_0 = 10
+T_mult = 1
 
 
 # TRAINING & VALIDATION
@@ -90,19 +92,15 @@ for m in range(n_models):
     torch.cuda.manual_seed_all(random_seed)
     np.random.seed(random_seed)
 
-    model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
-    model.load_state_dict(torch.load('models/ontarget/mfe34/final_model_{}.pt'.format(random_seed)))
+    model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.1).to(device)
+    model.load_state_dict(torch.load('models/ontarget/final_model_{}.pt'.format(random_seed % 5)))
 
-    # for name, param in model.named_parameters():
-    #     if name.startswith('c'):
-    #         param.requires_grad = False
-
-    train_set = GeneFeatureDataset(g_off, x_off, y_off)
+    train_set = GeneFeatureDataset(g_off, x_off, y_off, fold_list=off_fold)
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
     
     criterion = BalancedMSELoss()
     optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    # scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
+    scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
 
     n_iters = len(train_loader)
 
@@ -114,7 +112,7 @@ for m in range(n_models):
         model.train()
 
         for i, (g, x, y) in enumerate(train_loader):
-            g = g.permute((0, 3, 1, 2)) #[:, :, :, 4:34]
+            g = g.permute((0, 3, 1, 2))
             y = y.reshape(-1, 2)
 
             pred = model(g, x)
@@ -123,7 +121,7 @@ for m in range(n_models):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            # scheduler.step(epoch + i / n_iters)
+            scheduler.step(epoch + i / n_iters)
 
             train_loss.append(x.size(0) * loss.detach().cpu().numpy())
             train_count += x.size(0)
@@ -131,4 +129,4 @@ for m in range(n_models):
         train_loss = sum(train_loss) / train_count
         pbar.set_description('M {:02} | {:.4}'.format(m, train_loss))
     
-    torch.save(model.state_dict(),'models/offtarget/final_model_{}.pt'.format(random_seed))
+    torch.save(model.state_dict(), 'models/offtarget/final_model_{}.pt'.format(random_seed))
