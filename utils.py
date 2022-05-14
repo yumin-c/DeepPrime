@@ -55,8 +55,10 @@ def select_cols(data):
                             'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3', 'MFE3', 'MFE4', 'DeepSpCas9_score']]
     if 'Measured_PE_efficiency' in data.columns:
         target = data['Measured_PE_efficiency']
-    else:
+    elif 'Relative_effi' in data.columns:
         target = data['Predicted_PE_efficiency'] * data['Relative_effi']
+    else:
+        target = []
         
     return features, target
 
