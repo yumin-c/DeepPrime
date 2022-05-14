@@ -1,0 +1,13 @@
+program: offtarget_validate.py
+project: offtarget
+method: bayes
+metric:
+  goal: maximize
+  name: Spearman score
+parameters:
+  dropout:
+    values: [0.0, 0.1, 0.2, 0.3, 0.5]
+  learning_rate:
+    values: [5e-4, 1e-3, 2e-3, 5e-3, 1e-2]
+  weight_decay:
+    values: [5e-3, 1e-2, 2e-2, 5e-2]

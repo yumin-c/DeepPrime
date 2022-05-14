@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from torch.optim import AdamW
+from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from scipy import stats
 from tqdm import tqdm
@@ -74,16 +74,18 @@ y_off = torch.tensor(y_off.to_numpy(), dtype=torch.float32, device=device)
 
 # PARAMS
 
-# wandb.init()
-# config = wandb.config
+wandb.init()
+config = wandb.config
 
-batch_size = 512
-learning_rate = 4e-3
-weight_decay = 2e-2
+batch_size = 2048
+learning_rate = config.learning_rate
+weight_decay = config.weight_decay
 hidden_size = 128
 n_layers = 1
-n_epochs = 10
-n_models = 10
+n_epochs = 20
+n_models = 1
+T_0 = n_epochs
+T_mult = 1
 
 
 # TRAINING & VALIDATION
@@ -97,15 +99,12 @@ for m in range(n_models):
     torch.cuda.manual_seed_all(random_seed)
     np.random.seed(random_seed)
 
-    for fold in range(5):
-
-        # if fold != 0:
-        #     break
+    for fold in range(0):
 
         best_score = [10., 10., 0.]
 
-        model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
-        model.load_state_dict(torch.load('models/pretrained/final_model_{}.pt'.format(m)))
+        model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.0).to(device)
+        model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed)))
 
         train_set = GeneFeatureDataset(g_off, x_off, y_off, str(fold), 'train', off_fold)
         valid_set = GeneFeatureDataset(g_off, x_off, y_off, str(fold), 'valid', off_fold)
@@ -115,6 +114,7 @@ for m in range(n_models):
 
         criterion = BalancedMSELoss()
         optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/10)
 
         n_iters = len(train_loader)
 
@@ -135,6 +135,7 @@ for m in range(n_models):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+                scheduler.step(epoch + i / n_iters)
 
                 train_loss.append(x.size(0) * loss.detach().cpu().numpy())
                 train_count += x.size(0)
@@ -172,11 +173,15 @@ for m in range(n_models):
             if R > best_score[2]:
                 best_score = [train_loss, valid_loss, R]
 
-            #     torch.save(model.state_dict(),'models/offtarget/{:02}_auxiliary.pt'.format(fold))
+                # torch.save(model.state_dict(),'models/offtarget/{:02}_auxiliary.pt'.format(fold))
 
-            # metrics = {'Train loss': train_loss, 'Valid loss': valid_loss, 'Spearman score': R, 'Best R': best_score[2]}
-            # wandb.log(metrics)
+            # pbar.set_description('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1, n_models, epoch + 1, n_epochs, train_loss, valid_loss, R))
+            print('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1, n_models, epoch + 1, n_epochs, train_loss, valid_loss, R))
+            
+            metrics = {'Train loss': train_loss,
+                       'Valid loss': valid_loss,
+                       'Spearman score': R}
 
-            pbar.set_description('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1, n_models, epoch + 1, n_epochs, train_loss, valid_loss, R))
+            wandb.log(metrics)
 
         # os.rename('models/offtarget/{:02}_auxiliary.pt'.format(fold), 'models/offtarget/{:02}_{}_{:.4f}_{:.4f}.pt'.format(fold, m, best_score[1], best_score[2]))
