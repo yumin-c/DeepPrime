@@ -106,4 +106,4 @@ for m in range(n_models):
         train_loss = sum(train_loss) / train_count
         pbar.set_description('M {:02} | {:.4}'.format(m, train_loss))
 
-    torch.save(model.state_dict(),'models/ontarget/final/model_{}.pt'.format(random_seed))
+    torch.save(model.state_dict(),'models/ontarget/final_model_{}.pt'.format(random_seed))
