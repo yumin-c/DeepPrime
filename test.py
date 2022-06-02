@@ -69,10 +69,10 @@ for file in file_list:
 
     models, preds = [], []
 
-    for (path, dir, files) in os.walk('models/ontarget/final/'):
+    for (path, dir, files) in os.walk('models/ontarget/'):
         for filename in files:
             if filename[-3:] == '.pt':
-                models.append('models/ontarget/final/' + filename)
+                models.append('models/ontarget/' + filename)
 
 
     # TEST
@@ -115,7 +115,7 @@ for file in file_list:
 
     # SAVE RESULTS
 
-    plot.plot_spearman(preds, y, 'plots/' + file[:-4] + '.jpg')
+    plot.plot_spearman(preds, y, 'plots/ontarget/' + file[:-4] + '.jpg')
     preds = pd.DataFrame(preds, columns=['Predicted_PE_efficiency'])
     preds = pd.concat([test_file, preds], axis=1)
-    preds.to_csv('results/' + file[:-4] + '.csv', index=False)
+    preds.to_csv('results/ontarget/' + file[:-4] + '.csv', index=False)

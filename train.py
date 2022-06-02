@@ -21,8 +21,8 @@ torch.backends.cudnn.benchmark = False
 train_file = pd.read_csv('data/DeepPrime_dataset_final_Feat8.csv')
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
-gene_path = 'data/g_final_Feat8.npy'
 
+gene_path = 'data/genes/DeepPrime_dataset_final_Feat8.npy'
 if not os.path.isfile(gene_path):
     g_train = seq_concat(train_file)
     np.save(gene_path, g_train)
@@ -106,4 +106,4 @@ for m in range(n_models):
         train_loss = sum(train_loss) / train_count
         pbar.set_description('M {:02} | {:.4}'.format(m, train_loss))
 
-    torch.save(model.state_dict(),'models/ontarget/final/model_{}.pt'.format(random_seed))
+    torch.save(model.state_dict(),'models/ontarget/final_model_{}.pt'.format(random_seed))
