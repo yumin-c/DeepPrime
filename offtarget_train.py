@@ -76,7 +76,7 @@ weight_decay = 1e-4
 hidden_size = 128
 n_layers = 1
 n_epochs = 10
-n_models = 5
+n_models = 20
 T_0 = 10
 T_mult = 1
 
@@ -94,10 +94,6 @@ for m in range(n_models):
 
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
     model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed % 4)))
-
-    # for name, param in model.named_parameters():
-    #     if name.startswith('c'):
-    #         param.requires_grad = False
 
     train_set = GeneFeatureDataset(g_off, x_off, y_off, fold_list=off_fold)
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)

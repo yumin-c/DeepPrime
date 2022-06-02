@@ -136,6 +136,6 @@ for fileidx in range(5):
                 train_count += x.size(0)
 
             train_loss = sum(train_loss) / train_count
-            pbar.set_description('M {:02} | {:.4}'.format(m, train_loss))
-
+            pbar.set_description('M {:02} | {:.4}'.format(random_seed, train_loss))
+    print(random_seed)
     torch.save(model.state_dict(),'models/ontarget_variants/{}/final_model_{}.pt'.format(file[:-4], random_seed))
