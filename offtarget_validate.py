@@ -91,7 +91,6 @@ T_mult = 1
 # TRAINING & VALIDATION
 
 for m in range(n_models):
-
     random_seed = m
 
     torch.manual_seed(random_seed)
@@ -99,7 +98,7 @@ for m in range(n_models):
     torch.cuda.manual_seed_all(random_seed)
     np.random.seed(random_seed)
 
-    for fold in range(0):
+    for fold in range(1):
 
         best_score = [10., 10., 0.]
 

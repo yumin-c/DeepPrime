@@ -31,9 +31,15 @@ else:
 
 # FEATURE SELECTION
 
+drop_features = ['Edit_len', 'Edit_pos', 'RHA_len', 'type_sub', 'type_ins', 'type_del']
+
 train_features, train_target = select_cols(train_file)
 train_fold = train_file.Fold
 train_type = train_file.loc[:, ['type_sub', 'type_ins', 'type_del']]
+
+train_features = train_features.drop(drop_features, axis=1)
+mean = mean.drop(drop_features)
+std = std.drop(drop_features)
 
 
 # NORMALIZATION
@@ -57,33 +63,32 @@ T_mult = 1
 hidden_size = 128
 n_layers = 1
 n_epochs = 10
-n_models = 10
-
-use_pretrained = False
+n_models = 5
 
 
 # TRAIN & VALIDATION
 
-for m in range(n_models):
+for fold in range(5):
 
-    random_seed = m
+    train_set = GeneFeatureDataset(g_train, x_train, y_train, str(fold), 'train', train_fold)
+    valid_set = GeneFeatureDataset(g_train, x_train, y_train, str(fold), 'valid', train_fold)
 
-    torch.manual_seed(random_seed)
-    torch.cuda.manual_seed(random_seed)
-    torch.cuda.manual_seed_all(random_seed)
-    np.random.seed(random_seed)
+    models, preds = [], []
+    
+    # Train multiple models to ensemble
+    for m in range(n_models):
 
-    for fold in range(5):
+        random_seed = m
 
-        best_score = [10., 10., 0.]
+        torch.manual_seed(random_seed)
+        torch.cuda.manual_seed(random_seed)
+        torch.cuda.manual_seed_all(random_seed)
+        np.random.seed(random_seed)
 
-        model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
-
-        train_set = GeneFeatureDataset(g_train, x_train, y_train, str(fold), 'train', train_fold)
-        valid_set = GeneFeatureDataset(g_train, x_train, y_train, str(fold), 'valid', train_fold)
+        model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, num_features=18).to(device)
 
         train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
-        valid_loader = DataLoader(dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
+        valid_loader = DataLoader(dataset=valid_set, batch_size=batch_size, shuffle=False, num_workers=0)
 
         criterion = BalancedMSELoss()
         optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -91,8 +96,7 @@ for m in range(n_models):
 
         n_iters = len(train_loader)
 
-        pbar = tqdm(range(n_epochs))
-        for epoch in pbar:
+        for epoch in tqdm(range(n_epochs)):
             train_loss, valid_loss = [], []
             train_count, valid_count = 0, 0
 
@@ -112,39 +116,49 @@ for m in range(n_models):
 
                 train_loss.append(x.size(0) * loss.detach().cpu().numpy())
                 train_count += x.size(0)
+            
+        models.append(model)
 
-            model.eval()
+    # Ensemble results (bagging)
+    for model in models:
 
-            pred_, y_ = None, None
+        model.eval()
+        pred_, y_ = None, None
 
-            with torch.no_grad():
-                for i, (g, x, y) in enumerate(valid_loader):
-                    g = g.permute((0, 3, 1, 2))
-                    y = y.reshape(-1, 4)
+        with torch.no_grad():
+            for i, (g, x, y) in enumerate(valid_loader):
+                g = g.permute((0, 3, 1, 2))
+                y = y.reshape(-1, 4)
 
-                    pred = model(g, x)
-                    loss = criterion(pred, y)
+                pred = model(g, x)
+                loss = criterion(pred, y)
 
-                    valid_loss.append(x.size(0) * loss.detach().cpu().numpy())
-                    valid_count += x.size(0)
+                valid_loss.append(x.size(0) * loss.detach().cpu().numpy())
+                valid_count += x.size(0)
 
-                    if pred_ is None:
-                        pred_ = pred.detach().cpu().numpy()
-                        y_ = y.detach().cpu().numpy()[:, 0]
-                    else:
-                        pred_ = np.concatenate((pred_, pred.detach().cpu().numpy()))
-                        y_ = np.concatenate((y_, y.detach().cpu().numpy()[:, 0]))
+                if pred_ is None:
+                    pred_ = pred.detach().cpu().numpy()
+                    y_ = y.detach().cpu().numpy()[:, 0]
+                else:
+                    pred_ = np.concatenate((pred_, pred.detach().cpu().numpy()))
+                    y_ = np.concatenate((y_, y.detach().cpu().numpy()[:, 0]))
+        
+        preds.append(pred_)
+    
+    preds = np.squeeze(np.array(preds))
+    preds = np.mean(preds, axis=0)
+    preds = np.exp(preds) - 1
 
-            train_loss = sum(train_loss) / train_count
-            valid_loss = sum(valid_loss) / valid_count
+    R = stats.spearmanr(preds, y_).correlation
 
-            R = stats.spearmanr(pred_, y_).correlation
+    print('GRU model with no additional features.')
+    print('Fold {} Spearman score: {}'.format(fold, R))
 
-            if valid_loss < best_score[1]:
-                best_score = [train_loss, valid_loss, R]
 
-                torch.save(model.state_dict(),'models/ontarget/{:02}_auxiliary.pt'.format(fold))
-
-            pbar.set_description('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1, n_models, epoch + 1, n_epochs, train_loss, valid_loss, R))
-
-        os.rename('models/ontarget/{:02}_auxiliary.pt'.format(fold), 'models/ontarget/{:02}_{}_{:.4f}.pt'.format(fold, m, best_score[1]))
+'''
+Fold 0 Spearman score: 0.8067747612357775
+Fold 1 Spearman score: 0.808031537224078
+Fold 2 Spearman score: 0.8014293459236057
+Fold 3 Spearman score: 0.8090301192831216
+Fold 4 Spearman score: 0.7707354017798824
+'''

@@ -91,7 +91,7 @@ for m in range(n_models):
     np.random.seed(random_seed)
 
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
-    model.load_state_dict(torch.load('models/ontarget/mfe34/final_model_{}.pt'.format(random_seed)))
+    model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed % 4)))
 
     # for name, param in model.named_parameters():
     #     if name.startswith('c'):

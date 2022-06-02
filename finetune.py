@@ -18,124 +18,124 @@ torch.backends.cudnn.benchmark = False
 
 fileidx = 0
 
-files = ['DP_variant_293T_PE2_Conv_220428.csv',
-         'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
-         'DP_variant_293T_PE2max_Opti_220428.csv',
-         'DP_variant_HCT116_PE2_Opti_220428.csv',
-         'DP_variant_MDA_PE2_Opti_220428.csv']
+for fileidx in range(5):
+    files = ['DP_variant_293T_PE2_Conv_220428.csv',
+            'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
+            'DP_variant_293T_PE2max_Opti_220428.csv',
+            'DP_variant_HCT116_PE2_Opti_220428.csv',
+            'DP_variant_MDA_PE2_Opti_220428.csv']
 
-file = files[fileidx]
+    file = files[fileidx]
 
-finetune_data = pd.read_csv('data/' + file)
+    finetune_data = pd.read_csv('data/' + file)
 
-gene_path = 'data/genes/' + file[:-4] + '.npy'
+    gene_path = 'data/genes/' + file[:-4] + '.npy'
 
-if not os.path.isfile(gene_path):
-    g_train = seq_concat(finetune_data)
-    np.save(gene_path, g_train)
-else:
-    g_train = np.load(gene_path)
-
-
-# FEATURE SELECTION
-
-train_features, train_target = select_cols(finetune_data)
-train_fold = finetune_data.Fold
-train_type = finetune_data.loc[:, ['type_sub', 'type_ins', 'type_del']]
+    if not os.path.isfile(gene_path):
+        g_train = seq_concat(finetune_data)
+        np.save(gene_path, g_train)
+    else:
+        g_train = np.load(gene_path)
 
 
-# NORMALIZATION
+    # FEATURE SELECTION
 
-x_train = (train_features - train_features.mean()) / train_features.std() # fit to finetuning data distribution.
-y_train = train_target
-y_train = pd.concat([y_train, train_type], axis=1)
-
-g_train = torch.tensor(g_train, dtype=torch.float32, device=device)
-x_train = torch.tensor(x_train.to_numpy(), dtype=torch.float32, device=device)
-y_train = torch.tensor(y_train.to_numpy(), dtype=torch.float32, device=device)
+    train_features, train_target = select_cols(finetune_data)
+    train_fold = finetune_data.Fold
+    train_type = finetune_data.loc[:, ['type_sub', 'type_ins', 'type_del']]
 
 
-# PARAMS
+    # NORMALIZATION
 
-freeze_conv = True
-batch_size = 512
-hidden_size = 128
-n_layers = 1
-n_models = 20
+    x_train = (train_features - train_features.mean()) / train_features.std() # fit to finetuning data distribution.
+    y_train = train_target
+    y_train = pd.concat([y_train, train_type], axis=1)
 
-if fileidx == 0:
-    freeze_conv = False
-    learning_rate = 5e-4
-    weight_decay = 0e-2
-    n_epochs = 100
-elif fileidx == 1:
-    freeze_conv = False
-    learning_rate = 1e-3
-    weight_decay = 0e-2
-    n_epochs = 100
-elif fileidx == 2:
-    freeze_conv = False
-    learning_rate = 5e-4
-    weight_decay = 0e-2
-    n_epochs = 100
-elif fileidx == 3:
-    freeze_conv = False
-    learning_rate = 5e-4
-    weight_decay = 0e-2
-    n_epochs = 50
-elif fileidx == 4:
-    freeze_conv = False
-    learning_rate = 5e-4
-    weight_decay = 0e-2
-    n_epochs = 100
+    g_train = torch.tensor(g_train, dtype=torch.float32, device=device)
+    x_train = torch.tensor(x_train.to_numpy(), dtype=torch.float32, device=device)
+    y_train = torch.tensor(y_train.to_numpy(), dtype=torch.float32, device=device)
 
 
-# TRAINING
+    # PARAMS
 
-for m in range(n_models):
+    batch_size = 512
+    hidden_size = 128
+    n_layers = 1
+    n_models = 20
 
-    random_seed = m
+    if fileidx == 0:
+        freeze_conv = False
+        learning_rate = 5e-4
+        weight_decay = 0e-2
+        n_epochs = 100
+    elif fileidx == 1:
+        freeze_conv = False
+        learning_rate = 1e-3
+        weight_decay = 0e-2
+        n_epochs = 100
+    elif fileidx == 2:
+        freeze_conv = False
+        learning_rate = 5e-4
+        weight_decay = 0e-2
+        n_epochs = 100
+    elif fileidx == 3:
+        freeze_conv = False
+        learning_rate = 5e-4
+        weight_decay = 0e-2
+        n_epochs = 50
+    elif fileidx == 4:
+        freeze_conv = False
+        learning_rate = 5e-4
+        weight_decay = 0e-2
+        n_epochs = 100
 
-    torch.manual_seed(random_seed)
-    torch.cuda.manual_seed(random_seed)
-    torch.cuda.manual_seed_all(random_seed)
-    np.random.seed(random_seed)
 
-    model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
+    # TRAINING
 
-    model.load_state_dict(torch.load('models/ontarget/mfe34/final_model_{}.pt'.format(m)))
-    
-    if freeze_conv:
-        for name, param in model.named_parameters():
-            if name.startswith('c'):
-                param.requires_grad = False
+    for m in range(n_models):
 
-    train_set = GeneFeatureDataset(g_train, x_train, y_train, fold_list=train_fold)
-    train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
+        random_seed = m
 
-    criterion = BalancedMSELoss()
-    optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        torch.manual_seed(random_seed)
+        torch.cuda.manual_seed(random_seed)
+        torch.cuda.manual_seed_all(random_seed)
+        np.random.seed(random_seed)
 
-    pbar = tqdm(range(n_epochs))
-    for epoch in pbar:
-        train_loss = []
-        train_count = 0
+        model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-        for i, (g, x, y) in enumerate(train_loader):
-            g = g.permute((0, 3, 1, 2))
-            y = y.reshape(-1, 4)
+        model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(m % 4)))
+        
+        if freeze_conv:
+            for name, param in model.named_parameters():
+                if name.startswith('c'):
+                    param.requires_grad = False
 
-            pred = model(g, x)
-            loss = criterion(pred, y)
+        train_set = GeneFeatureDataset(g_train, x_train, y_train, fold_list=train_fold)
+        train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+        criterion = BalancedMSELoss()
+        optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
-            train_loss.append(x.size(0) * loss.detach().cpu().numpy())
-            train_count += x.size(0)
+        pbar = tqdm(range(n_epochs))
+        for epoch in pbar:
+            train_loss = []
+            train_count = 0
 
-        train_loss = sum(train_loss) / train_count
-        pbar.set_description('M {:02} | {:.4}'.format(m, train_loss))
+            for i, (g, x, y) in enumerate(train_loader):
+                g = g.permute((0, 3, 1, 2))
+                y = y.reshape(-1, 4)
 
-    torch.save(model.state_dict(),'models/on_ft/{}/final_model_{}.pt'.format(file[:-4], random_seed))
+                pred = model(g, x)
+                loss = criterion(pred, y)
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                train_loss.append(x.size(0) * loss.detach().cpu().numpy())
+                train_count += x.size(0)
+
+            train_loss = sum(train_loss) / train_count
+            pbar.set_description('M {:02} | {:.4}'.format(m, train_loss))
+
+        torch.save(model.state_dict(),'models/on_ft/{}/final_model_{}.pt'.format(file[:-4], random_seed))
