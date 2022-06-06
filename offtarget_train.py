@@ -20,7 +20,7 @@ class BalancedMSELoss(nn.Module):
     def __init__(self, mode='pretrain', scale=True):
         super(BalancedMSELoss, self).__init__()
 
-        self.factor = [0.2, 1]
+        self.factor = [0.5, 1]
         self.mse = nn.MSELoss(reduction='sum')
 
     def forward(self, x, pred, actual):
@@ -70,8 +70,8 @@ y_off = torch.tensor(y_off.to_numpy(), dtype=torch.float32, device=device)
 
 # PARAMS
 
-batch_size = 512
-learning_rate = 1e-2
+batch_size = 256
+learning_rate = 8e-3
 weight_decay = 1e-2
 hidden_size = 128
 n_layers = 1

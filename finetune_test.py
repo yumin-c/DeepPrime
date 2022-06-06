@@ -56,8 +56,8 @@ for file in file_list:
 
     models, preds = [], []
 
-    for file in glob('models/ontarget_variants/{}/*.pt'.format(file[:-4])):
-        models.append(file)
+    for m in glob('models/ontarget_variants/{}/*.pt'.format(file[:-4])):
+        models.append(m)
                 
 
     # TEST

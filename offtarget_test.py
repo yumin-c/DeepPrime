@@ -45,9 +45,9 @@ y_test = torch.tensor(y_test.to_numpy(), dtype=torch.float32, device=device)
 
 models, preds = [], []
 
-for file in glob('models/offtarget/*.pt'):
-    print(file)
-    models.append(file)
+for m in glob('models/offtarget/*.pt'):
+    print(m)
+    models.append(m)
 
 
 # TEST
@@ -87,5 +87,5 @@ if True:
 plot.plot_spearman(preds, y, 'plots/offtarget/offtarget.jpg')
 
 preds = pd.DataFrame(preds, columns=['Predicted_PE_efficiency'])
-preds = pd.concat([off_data, preds], axis=1)
+preds = pd.concat([off_data.loc[test_idx].reset_index(drop=True), preds], axis=1)
 preds.to_csv('results/offtarget/offtarget.csv', index=False)
