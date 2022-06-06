@@ -1,11 +1,10 @@
 import os
-from tkinter import Y
 import numpy as np
 import pandas as pd
 import torch
-import yaml
-import plot
+from glob import glob
 from scipy import stats
+import plot
 from model import GeneInteractionModel
 from utils import seq_concat, select_cols
 
@@ -14,11 +13,11 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 # PREPROCESSING
 
-off_data = pd.read_csv('data/DeepOff_dataset_220318.csv')
+off_data = pd.read_csv('data/DeepOff_dataset_220604.csv')
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
 
-gene_path = 'data/genes/DeepOff_dataset_220318.npy'
+gene_path = 'data/genes/DeepOff_dataset_220604.npy'
 if not os.path.isfile(gene_path):
     g_off = seq_concat(off_data, col1='WT74_ref', col2='Edited74_On')
     np.save(gene_path, g_off)
@@ -46,10 +45,9 @@ y_test = torch.tensor(y_test.to_numpy(), dtype=torch.float32, device=device)
 
 models, preds = [], []
 
-for (path, dir, files) in os.walk('models/offtarget/'):
-    for filename in files:
-        if filename[-3:] == '.pt':
-            models.append('models/offtarget/' + filename)
+for file in glob('models/offtarget/*.pt'):
+    print(file)
+    models.append(file)
 
 
 # TEST

@@ -5,6 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 import torch
+from glob import glob
 from model import GeneInteractionModel
 from utils import seq_concat, select_cols
 
@@ -43,12 +44,10 @@ y_test = torch.tensor(y_test.to_numpy(), dtype=torch.float32, device=device)
 
 models, preds = [], []
 
-model_folder = 'models/' # Put models here
+model_dir = 'models/' # Put models here
 
-for (path, dir, files) in os.walk(model_folder):
-    for filename in files:
-        if filename[-3:] == '.pt':
-            models.append(model_folder + filename)
+for file in glob(model_dir + '*.py'):
+    models.append(file)
 
 
 # TEST

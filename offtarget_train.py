@@ -38,11 +38,11 @@ class BalancedMSELoss(nn.Module):
 
 # LOAD & PREPROCESS GENES
 
-off_data = pd.read_csv('data/DeepOff_dataset_220318.csv')
+off_data = pd.read_csv('data/DeepOff_dataset_220604.csv')
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
 
-gene_path = 'data/genes/DeepOff_dataset_220318.npy'
+gene_path = 'data/genes/DeepOff_dataset_220604.npy'
 if not os.path.isfile(gene_path):
     g_off = seq_concat(off_data, col1='WT74_ref', col2='Edited74_On')
     np.save(gene_path, g_off)
@@ -71,8 +71,8 @@ y_off = torch.tensor(y_off.to_numpy(), dtype=torch.float32, device=device)
 # PARAMS
 
 batch_size = 512
-learning_rate = 4e-3
-weight_decay = 1e-4
+learning_rate = 1e-2
+weight_decay = 1e-2
 hidden_size = 128
 n_layers = 1
 n_epochs = 10
@@ -92,7 +92,7 @@ for m in range(n_models):
     torch.cuda.manual_seed_all(random_seed)
     np.random.seed(random_seed)
 
-    model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
+    model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.2).to(device)
     model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed % 4)))
 
     train_set = GeneFeatureDataset(g_off, x_off, y_off, fold_list=off_fold)

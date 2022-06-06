@@ -4,8 +4,9 @@ import os
 import numpy as np
 import pandas as pd
 import torch
-import plot
+from glob import glob
 from scipy import stats
+import plot
 from model import GeneInteractionModel
 from utils import seq_concat, select_cols
 
@@ -55,10 +56,8 @@ for file in file_list:
 
     models, preds = [], []
 
-    for (path, dir, files) in os.walk('models/ontarget_variants/{}/'.format(file[:-4])):
-        for filename in files:
-            if filename[-3:] == '.pt':
-                models.append('models/ontarget_variants/{}/'.format(file[:-4]) + filename)
+    for file in glob('models/ontarget_variants/{}/*.pt'.format(file[:-4])):
+        models.append(file)
                 
 
     # TEST

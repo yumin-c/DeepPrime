@@ -40,11 +40,11 @@ class BalancedMSELoss(nn.Module):
 
 # LOAD & PREPROCESS GENES
 
-off_data = pd.read_csv('data/DeepOff_dataset_220318.csv')
+off_data = pd.read_csv('data/DeepOff_dataset_220604.csv')
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
 
-gene_path = 'data/genes/DeepOff_dataset_220318.npy'
+gene_path = 'data/genes/DeepOff_dataset_220604.npy'
 if not os.path.isfile(gene_path):
     g_off = seq_concat(off_data, col1='WT74_ref', col2='Edited74_On')
     np.save(gene_path, g_off)
@@ -73,8 +73,8 @@ y_off = torch.tensor(y_off.to_numpy(), dtype=torch.float32, device=device)
 # PARAMS
 
 batch_size = 512
-learning_rate = 4e-3
-weight_decay = 1e-4
+learning_rate = 1e-2
+weight_decay = 1e-2
 hidden_size = 128
 n_layers = 1
 n_epochs = 10
@@ -82,6 +82,7 @@ n_models = 1
 T_0 = 10
 T_mult = 1
 
+score = 0
 
 # TRAINING & VALIDATION
 
@@ -94,11 +95,13 @@ for m in range(n_models):
     np.random.seed(random_seed)
 
     for fold in range(5):
+        # if fold != 0:
+        #     break
 
         best_score = [10., 10., 0.]
 
         model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.2).to(device)
-        model.load_state_dict(torch.load('models/ontarget/final_model_{}.pt'.format(random_seed)))
+        model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed)))
 
         train_set = GeneFeatureDataset(g_off, x_off, y_off, str(fold), 'train', fold_list=off_fold)
         valid_set = GeneFeatureDataset(g_off, x_off, y_off, str(fold), 'valid', fold_list=off_fold)
@@ -112,8 +115,9 @@ for m in range(n_models):
 
         n_iters = len(train_loader)
 
-        pbar = tqdm(range(n_epochs))
-        for epoch in pbar:
+        # pbar = tqdm(range(n_epochs))
+        # for epoch in pbar:
+        for epoch in range(n_epochs):
             train_loss, valid_loss = [], []
             train_count, valid_count = 0, 0
 
@@ -173,3 +177,7 @@ for m in range(n_models):
             print('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1, n_models, epoch + 1, n_epochs, train_loss, valid_loss, R))
 
         # os.rename('models/offtarget/{:02}_auxiliary.pt'.format(fold), 'models/offtarget/{:02}_{}_{:.4f}_{:.4f}.pt'.format(fold, m, best_score[1], best_score[2]))
+        score += R
+    
+    print('Average Spearman correlation')
+    print(score/5)

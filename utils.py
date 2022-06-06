@@ -55,8 +55,8 @@ def select_cols(data):
                             'nGCcnt1', 'nGCcnt2', 'nGCcnt3', 'fGCcont1', 'fGCcont2', 'fGCcont3', 'MFE3', 'MFE4', 'DeepSpCas9_score']]
     if 'Measured_PE_efficiency' in data.columns:
         target = data['Measured_PE_efficiency']
-    elif 'Relative_effi' in data.columns:
-        target = data['Predicted_PE_efficiency'] * data['Relative_effi']
+    elif 'real_Off-target_%' in data.columns:
+        target = data['real_Off-target_%']
     else:
         target = []
         
