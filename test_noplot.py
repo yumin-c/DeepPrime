@@ -14,7 +14,7 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 # PREPROCESSING
 
-test_file = 'data/DeepPrime_PECV__test_220214.csv' # Enter test file location here
+test_file = 'data/DeepPrime_dataset_final_Feat8.csv' # Enter test file location here
 test_file = pd.read_csv(test_file)
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True) # Train set mean (made with preprocessing.py)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True) # Train set std (made with preprocessing.py)
@@ -23,8 +23,9 @@ if 'PE2' in test_file.columns:
     test_file = test_file[test_file['PE2'] == 'O'].reset_index(drop=True)
     
 test_features, test_target = select_cols(test_file)
+test_fold = test_file.Fold
 
-gene_path = 'g_test.npy' # One-hot encoded gene (ATGC) will be saved here
+gene_path = 'data/genes/DeepPrime_dataset_final_Feat8.npy'
 
 if not os.path.isfile(gene_path):
     g_test = seq_concat(test_file)
@@ -34,6 +35,12 @@ else:
 
 x_test = (test_features - mean) / std
 y_test = test_target
+
+test_idx = test_fold == 'Test' # select 'Test' fold data
+
+g_test = g_test[test_idx]
+x_test = x_test[test_idx]
+y_test = y_test[test_idx]
 
 g_test = torch.tensor(g_test, dtype=torch.float32, device=device)
 x_test = torch.tensor(x_test.to_numpy(), dtype=torch.float32, device=device)
@@ -46,7 +53,7 @@ models, preds = [], []
 
 model_dir = 'models/' # Put models here
 
-for file in glob(model_dir + '*.py'):
+for file in glob(model_dir + '*.pt'):
     models.append(file)
 
 
