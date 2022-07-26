@@ -4,6 +4,7 @@ import torch
 from torch.utils.data import Dataset
 from typing import Tuple
 from tqdm import tqdm
+import random
 
 
 def preprocess_seq(data):
@@ -73,10 +74,12 @@ class GeneFeatureDataset(Dataset):
         fold: int = None,
         mode: str = 'train',
         fold_list: np.ndarray = None,
+        offtarget: bool = False,
     ):
         self.fold = fold
         self.mode = mode
         self.fold_list = fold_list
+        self.offtarget = offtarget
 
         if self.fold_list is not None:
             self.indices = self._select_fold()
@@ -91,19 +94,20 @@ class GeneFeatureDataset(Dataset):
     def _select_fold(self):
         selected_indices = []
 
-        if self.mode == 'valid':  # SELECT A SINGLE GROUP
+        if self.mode == 'valid':  # Select a single group
             for i in range(len(self.fold_list)):
                 if self.fold_list[i] == self.fold:
                     selected_indices.append(i)
-        elif self.mode == 'train':  # SELECT OTHERS
+        elif self.mode == 'train':  # Select others
             for i in range(len(self.fold_list)):
                 if self.fold_list[i] != self.fold and self.fold_list[i] != 'Test':
                     selected_indices.append(i)
-        elif self.mode == 'finalizing':  # FOR FINALIZING
+        elif self.mode == 'finalizing':
             for i in range(len(self.fold_list)):
                 selected_indices.append(i)
 
         return selected_indices
+        
 
     def __len__(self):
         return len(self.gene)
@@ -112,5 +116,21 @@ class GeneFeatureDataset(Dataset):
         gene = self.gene[idx]
         features = self.features[idx]
         target = self.target[idx]
+        
+        if self.offtarget:
+            prob = random.random()
+            if prob < 0.03: # Transform 3% of data to create dummy data with off-target efficiency of 0%
+                prob /= 0.03
+                mutated_sequence = gene[0, :, :]
+
+                prob = random.uniform(0.2, 1.0)
+                for i in range(74):
+                    mutate_prob = random.random()
+
+                    if mutate_prob < prob:
+                        mutated_sequence[i] = torch.tensor(random.choice([[1., -1., -1., -1.], [-1., 1., -1., -1.], [-1., -1., 1., -1.], [-1., -1., -1., 1.]]), dtype=torch.float32, device=gene.device)
+
+                gene[0] = mutated_sequence
+                target = torch.zeros_like(target)
 
         return gene, features, target

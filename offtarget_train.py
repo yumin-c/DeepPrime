@@ -20,7 +20,7 @@ class BalancedMSELoss(nn.Module):
     def __init__(self, mode='pretrain', scale=True):
         super(BalancedMSELoss, self).__init__()
 
-        self.factor = [0.5, 1]
+        self.factor = [0.25, 1]
         self.mse = nn.MSELoss(reduction='sum')
 
     def forward(self, x, pred, actual):
@@ -76,9 +76,9 @@ weight_decay = 1e-2
 hidden_size = 128
 n_layers = 1
 n_epochs = 10
-n_models = 20
 T_0 = 10
 T_mult = 1
+n_models = 5
 
 
 # TRAINING & VALIDATION
@@ -95,7 +95,7 @@ for m in range(n_models):
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.2).to(device)
     model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed % 4)))
 
-    train_set = GeneFeatureDataset(g_off, x_off, y_off, fold_list=off_fold)
+    train_set = GeneFeatureDataset(g_off, x_off, y_off, fold_list=off_fold, offtarget=True)
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
     
     criterion = BalancedMSELoss()

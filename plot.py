@@ -17,10 +17,10 @@ def plot_spearman(pred = None, y = None, filename = None, title = "Evaluation of
     ax.set_xticks(range(0, 55, 5))
     ax.set_yticks(range(0, 55, 5))
 
-    ax.set_xlim([-1, 101])
-    ax.set_ylim([-1, 101])
-    ax.set_xticks(range(0, 110, 10))
-    ax.set_yticks(range(0, 110, 10))
+    # ax.set_xlim([-1, 101])
+    # ax.set_ylim([-1, 101])
+    # ax.set_xticks(range(0, 110, 10))
+    # ax.set_yticks(range(0, 110, 10))
 
     ax.set_title(title)
     ax.set_xlabel("Measured PE2 efficiency (%)")

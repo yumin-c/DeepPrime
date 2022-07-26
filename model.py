@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
+import math
 
 
 class GeneInteractionModel(nn.Module):
@@ -57,6 +58,91 @@ class GeneInteractionModel(nn.Module):
         g = self.c2(g)
         g, _ = self.r(torch.transpose(g, 1, 2))
         g = self.s(g[:, -1, :])
+
+        x = self.d(x)
+
+        out = self.head(torch.cat((g, x), dim=1))
+
+        return F.softplus(out)
+
+
+class Transformer(nn.Module):
+
+    def __init__(self, hidden_size=128, nhead=4, dim_feedforward=256, layer_norm_eps=1e-5, num_encoder_layers=2, num_features=24, dropout=0.1):
+        super(Transformer, self).__init__()
+
+        self.hidden_size = hidden_size
+
+        self.c1 = nn.Sequential(
+            nn.Conv2d(in_channels=4, out_channels=128, kernel_size=(2, 3), stride=1, padding=(0, 1)),
+            nn.BatchNorm2d(128),
+            nn.GELU(),
+        )
+        self.c2 = nn.Sequential(
+            nn.Conv1d(in_channels=128, out_channels=108, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(108),
+            nn.GELU(),
+            nn.AvgPool1d(kernel_size=2, stride=2),
+
+            nn.Conv1d(in_channels=108, out_channels=108, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(108),
+            nn.GELU(),
+            nn.AvgPool1d(kernel_size=2, stride=2),
+
+            nn.Conv1d(in_channels=108, out_channels=hidden_size, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(hidden_size),
+            nn.GELU(),
+            nn.AvgPool1d(kernel_size=2, stride=2),
+        )
+
+        self.register_parameter(name='reg_token', param=nn.Parameter(torch.randn(size=(1, 1, hidden_size))))
+
+        # seq_len = 10
+        # pe = torch.zeros(seq_len, hidden_size)
+        # for pos in range(seq_len):
+        #     for i in range(0, seq_len, 2):
+        #         pe[pos, i] = \
+        #         math.sin(pos / (10000 ** ((2 * i)/hidden_size)))
+        #         pe[pos, i + 1] = \
+        #         math.cos(pos / (10000 ** ((2 * (i + 1))/hidden_size)))
+                
+        # pe = pe.unsqueeze(1)
+        # self.register_buffer('pos_embedding', pe)
+
+        self.register_parameter(name='pos_embedding', param=nn.Parameter(torch.randn(9+1, 1, hidden_size)))
+
+        encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_size, dim_feedforward=dim_feedforward, nhead=nhead, dropout=0.15, activation="gelu")
+        encoder_norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps)
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
+
+        self.d = nn.Sequential(
+            nn.Linear(num_features, 96, bias=False),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(96, 64, bias=False),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(64, 128, bias=False),
+        )
+
+        self.head = nn.Sequential(
+            nn.LayerNorm(hidden_size + 128),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size + 128, 1, bias=True),
+        )
+
+    def forward(self, g, x):
+        n_samples = x.size(0)
+        repeat_token = self.reg_token.repeat(1, n_samples, 1)
+
+        g = torch.squeeze(self.c1(g), 2)
+        g = self.c2(g) # (B, F, S)
+
+        g = torch.cat((repeat_token, torch.permute(g, (2, 0, 1))), dim=0) # (S, B, F)
+        g += self.pos_embedding
+
+        g = self.encoder(g)
+        g = torch.squeeze(g[0, :, :])
 
         x = self.d(x)
 

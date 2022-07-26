@@ -13,32 +13,66 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 # PREPROCESSING
 
-off_data = pd.read_csv('data/DeepOff_dataset_220604.csv')
-mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
-std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
+use_external = False # if true, evaluate using KimDS (2020) dataset.
 
-gene_path = 'data/genes/DeepOff_dataset_220604.npy'
-if not os.path.isfile(gene_path):
-    g_off = seq_concat(off_data, col1='WT74_ref', col2='Edited74_On')
-    np.save(gene_path, g_off)
+if use_external:
+    ext_name = 'KimDS_'
+
+    off_data = pd.read_csv('data/Biofeature_output_KimDS_ref_220722_opti_scaffold.csv')
+    mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
+    std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
+
+    gene_path = 'data/genes/Biofeature_output_KimDS_ref_220722_opti_scaffold.npy'
+    if not os.path.isfile(gene_path):
+        g_off = seq_concat(off_data, col1='WT74_ref', col2='Edited74_On')
+        np.save(gene_path, g_off)
+    else:
+        g_off = np.load(gene_path)
+
+    off_features, off_target = select_cols(off_data)
+
+    x_off = (off_features - mean) / std
+    y_off = off_target
+
+    test_idx = y_off > 0.1
+
+    g_test = g_off#[test_idx]
+    x_test = x_off#[test_idx]
+    y_test = y_off#[test_idx]
+
+    g_test = torch.tensor(g_test, dtype=torch.float32, device=device)
+    x_test = torch.tensor(x_test.to_numpy(), dtype=torch.float32, device=device)
+    y_test = torch.tensor(y_test.to_numpy(), dtype=torch.float32, device=device)
+
 else:
-    g_off = np.load(gene_path)
+    ext_name = ''
 
-off_features, off_target = select_cols(off_data)
-off_fold = off_data.Fold
+    off_data = pd.read_csv('data/DeepOff_dataset_220604.csv')
+    mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
+    std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
 
-x_off = (off_features - mean) / std
-y_off = off_target
+    gene_path = 'data/genes/DeepOff_dataset_220604.npy'
+    if not os.path.isfile(gene_path):
+        g_off = seq_concat(off_data, col1='WT74_ref', col2='Edited74_On')
+        np.save(gene_path, g_off)
+    else:
+        g_off = np.load(gene_path)
 
-test_idx = off_fold == 'Test'
+    off_features, off_target = select_cols(off_data)
+    off_fold = off_data.Fold
 
-g_test = g_off[test_idx]
-x_test = x_off[test_idx]
-y_test = y_off[test_idx]
+    x_off = (off_features - mean) / std
+    y_off = off_target
 
-g_test = torch.tensor(g_test, dtype=torch.float32, device=device)
-x_test = torch.tensor(x_test.to_numpy(), dtype=torch.float32, device=device)
-y_test = torch.tensor(y_test.to_numpy(), dtype=torch.float32, device=device)
+    test_idx = off_fold == 'Test'
+
+    g_test = g_off[test_idx]
+    x_test = x_off[test_idx]
+    y_test = y_off[test_idx]
+
+    g_test = torch.tensor(g_test, dtype=torch.float32, device=device)
+    x_test = torch.tensor(x_test.to_numpy(), dtype=torch.float32, device=device)
+    y_test = torch.tensor(y_test.to_numpy(), dtype=torch.float32, device=device)
 
 
 # LOAD MODELS
@@ -72,6 +106,25 @@ preds = np.mean(preds, axis=0)
 preds = np.exp(preds) - 1
 y = y[:, 0]
 
+if use_external:
+    zero_indices = []
+
+    for i in range(len(off_data)):
+        difference = 0
+        on, ref = off_data['WT74_On'].iloc[i], off_data['WT74_ref'].iloc[i]
+        rt_len = off_data['RTlen'].iloc[i]
+
+        boundary = 17 + rt_len
+
+        for j in range(boundary):
+            if on[4+j] != ref[4+j]:
+                difference += 1
+        
+        if difference > 4:
+            zero_indices.append(i)
+    
+    preds[zero_indices] = 0
+
 
 # SHOW SCORE
 
@@ -80,12 +133,14 @@ print(stats.spearmanr(preds, y).correlation)
 
 # SAVE RESULTS
 
-if True:
+if use_external:
+    pos_not5 = (off_data['Edit_pos'] != 5)
+else:
     pos_not5 = (off_data['Edit_pos'] != 5)[test_idx]
-    plot.plot_spearman(preds[pos_not5], y[pos_not5], 'plots/offtarget/pos_not5.jpg')
 
-plot.plot_spearman(preds, y, 'plots/offtarget/offtarget.jpg')
+plot.plot_spearman(preds[pos_not5], y[pos_not5], 'plots/offtarget/{}pos_not5.jpg'.format(ext_name))
+plot.plot_spearman(preds, y, 'plots/offtarget/{}offtarget.jpg'.format(ext_name))
 
 preds = pd.DataFrame(preds, columns=['Predicted_PE_efficiency'])
 preds = pd.concat([off_data.loc[test_idx].reset_index(drop=True), preds], axis=1)
-preds.to_csv('results/offtarget/offtarget.csv', index=False)
+preds.to_csv('results/offtarget/{}offtarget.csv'.format(ext_name), index=False)

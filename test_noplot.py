@@ -51,7 +51,7 @@ y_test = torch.tensor(y_test.to_numpy(), dtype=torch.float32, device=device)
 
 models, preds = [], []
 
-model_dir = 'models/' # Put models here
+model_dir = 'models/ontarget/final/' # Put models here (example)
 
 for file in glob(model_dir + '*.pt'):
     models.append(file)

@@ -45,6 +45,7 @@ y_train = pd.concat([y_train, train_type], axis=1)
 g_train = torch.tensor(g_train, dtype=torch.float32, device=device)
 x_train = torch.tensor(x_train.to_numpy(), dtype=torch.float32, device=device)
 y_train = torch.tensor(y_train.to_numpy(), dtype=torch.float32, device=device)
+train_file['Predicted_PE_efficiency'] = 0
 
 
 # PARAMS
@@ -148,6 +149,9 @@ for fold in range(5):
     R = stats.spearmanr(preds, y_).correlation
 
     print('Fold {} Spearman score: {}'.format(fold, R))
+    train_file.loc[train_fold == str(fold), 'Predicted_PE_efficiency'] = preds
+
+train_file.to_csv('results/ontarget/final_5cv.csv', index=False)
 
 
 '''
