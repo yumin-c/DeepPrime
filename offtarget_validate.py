@@ -73,8 +73,8 @@ y_off = torch.tensor(y_off.to_numpy(), dtype=torch.float32, device=device)
 # PARAMS
 
 batch_size = 256
-learning_rate = 8e-3
-weight_decay = 1e-2
+learning_rate = 5e-3
+weight_decay = 2e-2
 hidden_size = 128
 n_layers = 1
 n_epochs = 10
@@ -102,7 +102,7 @@ for fold in range(5):
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.2).to(device)
     model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed)))
 
-    train_set = GeneFeatureDataset(g_off, x_off, y_off, str(fold), 'train', fold_list=off_fold, offtarget=True)
+    train_set = GeneFeatureDataset(g_off, x_off, y_off, str(fold), 'train', fold_list=off_fold, offtarget=True, random_seed=random_seed)
     valid_set = GeneFeatureDataset(g_off, x_off, y_off, str(fold), 'valid', fold_list=off_fold)
 
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)

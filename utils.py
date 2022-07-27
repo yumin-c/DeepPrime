@@ -75,7 +75,9 @@ class GeneFeatureDataset(Dataset):
         mode: str = 'train',
         fold_list: np.ndarray = None,
         offtarget: bool = False,
+        random_seed: int = 0,
     ):
+        random.seed(random_seed)
         self.fold = fold
         self.mode = mode
         self.fold_list = fold_list
@@ -119,16 +121,15 @@ class GeneFeatureDataset(Dataset):
         
         if self.offtarget:
             prob = random.random()
-            if prob < 0.03: # Transform 3% of data to create dummy data with off-target efficiency of 0%
-                prob /= 0.03
+            
+            if prob < 0.05: # Transform 5% of data to create dummy data with off-target efficiency of 0%
                 mutated_sequence = gene[0, :, :]
 
-                prob = random.uniform(0.2, 1.0)
-                for i in range(74):
-                    mutate_prob = random.random()
+                proportion = random.uniform(0.2, 1.0)
+                replace_indices = random.sample(range(74), int(proportion * 74))
 
-                    if mutate_prob < prob:
-                        mutated_sequence[i] = torch.tensor(random.choice([[1., -1., -1., -1.], [-1., 1., -1., -1.], [-1., -1., 1., -1.], [-1., -1., -1., 1.]]), dtype=torch.float32, device=gene.device)
+                for i in replace_indices:
+                    mutated_sequence[i] = torch.tensor(random.choice([[1., -1., -1., -1.], [-1., 1., -1., -1.], [-1., -1., 1., -1.], [-1., -1., -1., 1.]]), dtype=torch.float32, device=gene.device)
 
                 gene[0] = mutated_sequence
                 target = torch.zeros_like(target)

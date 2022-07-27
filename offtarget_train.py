@@ -71,11 +71,11 @@ y_off = torch.tensor(y_off.to_numpy(), dtype=torch.float32, device=device)
 # PARAMS
 
 batch_size = 256
-learning_rate = 8e-3
-weight_decay = 1e-2
+learning_rate = 5e-3
+weight_decay = 2e-2
 hidden_size = 128
 n_layers = 1
-n_epochs = 10
+n_epochs = 8
 T_0 = 10
 T_mult = 1
 n_models = 5
@@ -95,7 +95,7 @@ for m in range(n_models):
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.2).to(device)
     model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed % 4)))
 
-    train_set = GeneFeatureDataset(g_off, x_off, y_off, fold_list=off_fold, offtarget=True)
+    train_set = GeneFeatureDataset(g_off, x_off, y_off, fold_list=off_fold, offtarget=True, random_seed=random_seed)
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
     
     criterion = BalancedMSELoss()
