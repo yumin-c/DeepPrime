@@ -16,14 +16,21 @@ torch.backends.cudnn.benchmark = False
 
 # LOAD & PREPROCESS GENES
 
-fileidx = 4
+# fileidx = 4
 
-for fileidx in range(5):
-    files = ['DP_variant_293T_PE2_Conv_220428.csv',
-            'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
-            'DP_variant_293T_PE2max_Opti_220428.csv',
-            'DP_variant_HCT116_PE2_Opti_220428.csv',
-            'DP_variant_MDA_PE2_Opti_220428.csv']
+for fileidx in range(9):
+    files = [
+        'DP_variant_293T_PE2_Conv_220428.csv',
+        'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
+        'DP_variant_293T_PE2max_Opti_220428.csv',
+        'DP_variant_HCT116_PE2_Opti_220428.csv',
+        'DP_variant_MDA_PE2_Opti_220428.csv',
+        'DP_variant_DLD1_PE4max_Opti_220728.csv',
+        'DP_variant_DLD1_NRCHPE4max_Opti_220728.csv',
+        'DP_variant_A549_PE4max_Opti_220728.csv',
+        'DP_variant_293T_PE4max_Opti_220728.csv',
+        ]
+    # if fileidx >= 5: continue
 
     file = files[fileidx]
 
@@ -88,6 +95,26 @@ for fileidx in range(5):
         learning_rate = 5e-4
         weight_decay = 0e-2
         n_epochs = 100
+    elif fileidx == 5:
+        freeze_conv = False
+        learning_rate = 2e-3
+        weight_decay = 0e-2
+        n_epochs = 100
+    elif fileidx == 6:
+        freeze_conv = False
+        learning_rate = 1e-3
+        weight_decay = 0e-2
+        n_epochs = 100
+    elif fileidx == 7:
+        freeze_conv = False
+        learning_rate = 4e-3
+        weight_decay = 2e-2
+        n_epochs = 100
+    elif fileidx == 8:
+        freeze_conv = False
+        learning_rate = 5e-3
+        weight_decay = 1e-2
+        n_epochs = 100
 
 
     # TRAINING
@@ -103,7 +130,7 @@ for fileidx in range(5):
 
         model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers).to(device)
 
-        model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(m % 4)))
+        model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(m % 5)))
         
         if freeze_conv:
             for name, param in model.named_parameters():

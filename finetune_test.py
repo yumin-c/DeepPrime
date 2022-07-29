@@ -16,12 +16,16 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 # PREPROCESSING
 
 file_list = [
-             'DP_variant_293T_PE2_Conv_220428.csv',
-             'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
-             'DP_variant_293T_PE2max_Opti_220428.csv',
-             'DP_variant_HCT116_PE2_Opti_220428.csv',
-             'DP_variant_MDA_PE2_Opti_220428.csv',
-             ]
+        'DP_variant_293T_PE2_Conv_220428.csv',
+        'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
+        'DP_variant_293T_PE2max_Opti_220428.csv',
+        'DP_variant_HCT116_PE2_Opti_220428.csv',
+        'DP_variant_MDA_PE2_Opti_220428.csv',
+        'DP_variant_DLD1_PE4max_Opti_220728.csv',
+        'DP_variant_DLD1_NRCHPE4max_Opti_220728.csv',
+        'DP_variant_A549_PE4max_Opti_220728.csv',
+        'DP_variant_293T_PE4max_Opti_220728.csv',
+        ]
 
 for file in file_list:
 
@@ -95,7 +99,7 @@ for file in file_list:
 
     # SHOW SCORE
 
-    print('Scores for ' + 'models/on_ft/{}/'.format(file[:-4]))
+    print('Scores for ' + 'models/ontarget_variants/{}/'.format(file[:-4]))
     print(stats.spearmanr(preds, y).correlation)
 
 

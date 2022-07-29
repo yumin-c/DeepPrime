@@ -93,7 +93,7 @@ for m in range(n_models):
     np.random.seed(random_seed)
 
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.2).to(device)
-    model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed % 4)))
+    model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed % 5)))
 
     train_set = GeneFeatureDataset(g_off, x_off, y_off, fold_list=off_fold, offtarget=True, random_seed=random_seed)
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
