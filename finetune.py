@@ -16,21 +16,19 @@ torch.backends.cudnn.benchmark = False
 
 # LOAD & PREPROCESS GENES
 
-# fileidx = 4
+files = [
+    'DP_variant_293T_PE2_Conv_220428.csv',
+    'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
+    'DP_variant_293T_PE2max_Opti_220428.csv',
+    'DP_variant_HCT116_PE2_Opti_220428.csv',
+    'DP_variant_MDA_PE2_Opti_220428.csv',
+    'DP_variant_DLD1_PE4max_Opti_220728.csv',
+    'DP_variant_DLD1_NRCHPE4max_Opti_220728.csv',
+    'DP_variant_A549_PE4max_Opti_220728.csv',
+    'DP_variant_293T_PE4max_Opti_220728.csv',
+    ]
 
 for fileidx in range(9):
-    files = [
-        'DP_variant_293T_PE2_Conv_220428.csv',
-        'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
-        'DP_variant_293T_PE2max_Opti_220428.csv',
-        'DP_variant_HCT116_PE2_Opti_220428.csv',
-        'DP_variant_MDA_PE2_Opti_220428.csv',
-        'DP_variant_DLD1_PE4max_Opti_220728.csv',
-        'DP_variant_DLD1_NRCHPE4max_Opti_220728.csv',
-        'DP_variant_A549_PE4max_Opti_220728.csv',
-        'DP_variant_293T_PE4max_Opti_220728.csv',
-        ]
-    # if fileidx >= 5: continue
 
     file = files[fileidx]
 
@@ -65,53 +63,53 @@ for fileidx in range(9):
 
     # PARAMS
 
+    freeze_conv = False
+    use_scheduler = False
     batch_size = 512
     hidden_size = 128
     n_layers = 1
     n_models = 20
 
+    if fileidx != 8:
+        continue
+    
     if fileidx == 0:
-        freeze_conv = False
         learning_rate = 5e-4
         weight_decay = 0e-2
         n_epochs = 100
     elif fileidx == 1:
-        freeze_conv = False
         learning_rate = 1e-3
         weight_decay = 0e-2
         n_epochs = 100
     elif fileidx == 2:
-        freeze_conv = False
-        learning_rate = 5e-4
-        weight_decay = 0e-2
+        learning_rate = 5e-3
+        weight_decay = 1e-2
         n_epochs = 100
+        use_scheduler = True
     elif fileidx == 3:
-        freeze_conv = False
-        learning_rate = 5e-4
-        weight_decay = 0e-2
+        learning_rate = 1e-2
+        weight_decay = 1e-2
         n_epochs = 50
+        use_scheduler = True
     elif fileidx == 4:
-        freeze_conv = False
-        learning_rate = 5e-4
-        weight_decay = 0e-2
-        n_epochs = 100
+        learning_rate = 4e-3
+        weight_decay = 1e-2
+        n_epochs = 50
+        use_scheduler = True
     elif fileidx == 5:
-        freeze_conv = False
-        learning_rate = 2e-3
-        weight_decay = 0e-2
-        n_epochs = 100
+        learning_rate = 8e-3
+        weight_decay = 1e-2
+        n_epochs = 50
+        use_scheduler = True
     elif fileidx == 6:
-        freeze_conv = False
         learning_rate = 1e-3
         weight_decay = 0e-2
         n_epochs = 100
     elif fileidx == 7:
-        freeze_conv = False
         learning_rate = 4e-3
         weight_decay = 2e-2
         n_epochs = 100
     elif fileidx == 8:
-        freeze_conv = False
         learning_rate = 5e-3
         weight_decay = 1e-2
         n_epochs = 100

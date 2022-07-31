@@ -64,54 +64,50 @@ y_train = torch.tensor(y_train.to_numpy(), dtype=torch.float32, device=device)
 
 # PARAMS
 
-freeze_conv = True
+freeze_conv = False
+use_scheduler = False
 batch_size = 512
 hidden_size = 128
 n_layers = 1
 n_models = 20
 
 if fileidx == 0:
-    freeze_conv = False
     learning_rate = 5e-4
     weight_decay = 0e-2
     n_epochs = 100
 elif fileidx == 1:
-    freeze_conv = False
     learning_rate = 1e-3
     weight_decay = 0e-2
     n_epochs = 100
 elif fileidx == 2:
-    freeze_conv = True
     learning_rate = 5e-3
-    weight_decay = 0e-2
+    weight_decay = 1e-2
     n_epochs = 100
+    use_scheduler = True
 elif fileidx == 3:
-    freeze_conv = False
-    learning_rate = 5e-4
-    weight_decay = 0e-2
+    learning_rate = 1e-2
+    weight_decay = 1e-2
     n_epochs = 50
+    use_scheduler = True
 elif fileidx == 4:
-    freeze_conv = False
-    learning_rate = 5e-4
-    weight_decay = 0e-2
-    n_epochs = 100
+    learning_rate = 4e-3
+    weight_decay = 1e-2
+    n_epochs = 50
+    use_scheduler = True
 elif fileidx == 5:
-    freeze_conv = False
-    learning_rate = 2e-3
-    weight_decay = 0e-2
-    n_epochs = 100
+    learning_rate = 8e-3
+    weight_decay = 1e-2
+    n_epochs = 50
+    use_scheduler = True
 elif fileidx == 6:
-    freeze_conv = False
     learning_rate = 1e-3
     weight_decay = 0e-2
     n_epochs = 100
 elif fileidx == 7:
-    freeze_conv = False
     learning_rate = 4e-3
     weight_decay = 2e-2
     n_epochs = 100
 elif fileidx == 8:
-    freeze_conv = False
     learning_rate = 5e-3
     weight_decay = 1e-2
     n_epochs = 100
@@ -150,12 +146,11 @@ for m in range(n_models):
 
         criterion = BalancedMSELoss()
         optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        # scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=n_epochs, T_mult=1, eta_min=learning_rate/100)
 
         n_iters = len(train_loader)
 
-        pbar = tqdm(range(n_epochs))
-        for epoch in pbar:
+        for epoch in range(n_epochs):
             train_loss, valid_loss = [], []
             train_count, valid_count = 0, 0
 
@@ -171,7 +166,7 @@ for m in range(n_models):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                # scheduler.step(epoch + i / n_iters)
+                if use_scheduler: scheduler.step(epoch + i / n_iters)
 
                 train_loss.append(x.size(0) * loss.detach().cpu().numpy())
                 train_count += x.size(0)
@@ -208,6 +203,8 @@ for m in range(n_models):
 
                 # torch.save(model.state_dict(), 'models/on_ft/{}/{:02}_auxiliary.pt'.format(file[:-4], fold))
 
-            pbar.set_description('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1, n_models, epoch + 1, n_epochs, train_loss, valid_loss, R))
+            print('[FOLD {:02}] [M {:03}/{:03}] [E {:03}/{:03}] : {:.4f} | {:.4f} | {:.4f}'.format(fold, m + 1, n_models, epoch + 1, n_epochs, train_loss, valid_loss, R))
 
         # os.rename('models/on_ft/{}/{:02}_auxiliary.pt'.format(file[:-4], fold), 'models/on_ft/{}/{:02}_{}.pt'.format(file[:-4], fold, m))
+
+        print()
