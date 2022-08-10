@@ -7,33 +7,12 @@ from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils import GeneFeatureDataset, seq_concat, select_cols
-from model import GeneInteractionModel
+from model import GeneInteractionModel, OffTargetLoss
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
-
-
-class BalancedMSELoss(nn.Module):
-
-    def __init__(self, mode='pretrain', scale=True):
-        super(BalancedMSELoss, self).__init__()
-
-        self.factor = [0.25, 1]
-        self.mse = nn.MSELoss(reduction='sum')
-
-    def forward(self, x, pred, actual):
-        pred = pred.view(-1, 1)
-        y = torch.log1p(actual[:, 0].view(-1, 1))
-        idx = actual[:, -1] == 7
-
-        l1 = self.mse(pred[idx], y[idx]) * self.factor[0]
-        l2 = self.mse(pred[~idx], y[~idx]) * self.factor[1]
-            
-        loss = (l1 + l2) / x.size(0)
-
-        return loss
 
 
 # LOAD & PREPROCESS GENES
@@ -71,14 +50,20 @@ y_off = torch.tensor(y_off.to_numpy(), dtype=torch.float32, device=device)
 # PARAMS
 
 batch_size = 256
-learning_rate = 5e-3
-weight_decay = 2e-2
+learning_rate = 4e-2
+weight_decay = 1e-2
 hidden_size = 128
 n_layers = 1
-n_epochs = 8
-T_0 = 10
+n_epochs = 5
+T_0 = 5
 T_mult = 1
+offtarget_mutate = 0.05
+ontarget_mutate = 1.0
+
 n_models = 5
+
+score = 0
+score_ = 0
 
 
 # TRAINING & VALIDATION
@@ -95,10 +80,10 @@ for m in range(n_models):
     model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.2).to(device)
     model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed % 5)))
 
-    train_set = GeneFeatureDataset(g_off, x_off, y_off, fold_list=off_fold, offtarget=True, random_seed=random_seed)
+    train_set = GeneFeatureDataset(g_off, x_off, y_off, fold_list=off_fold, offtarget_mutate=offtarget_mutate, ontarget_mutate=ontarget_mutate, random_seed=random_seed)
     train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
     
-    criterion = BalancedMSELoss()
+    criterion = OffTargetLoss()
     optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=learning_rate/100)
 
@@ -116,7 +101,7 @@ for m in range(n_models):
             y = y.reshape(-1, 2)
 
             pred = model(g, x)
-            loss = criterion(x, pred, y)
+            loss = criterion(pred, y)
 
             optimizer.zero_grad()
             loss.backward()

@@ -45,9 +45,8 @@ def seq_concat(data, col1='WT74_On', col2='Edited74_On'):
     wt = preprocess_seq(data[col1])
     ed = preprocess_seq(data[col2])
     g = np.concatenate((wt, ed), axis=1)
-    g = 2 * g - 1
 
-    return g
+    return 2 * g - 1
 
 
 def select_cols(data):
@@ -74,14 +73,25 @@ class GeneFeatureDataset(Dataset):
         fold: int = None,
         mode: str = 'train',
         fold_list: np.ndarray = None,
-        offtarget: bool = False,
+        offtarget_mutate: float = 0.,
+        ontarget_mutate: float = 0.,
         random_seed: int = 0,
     ):
         random.seed(random_seed)
+        torch.manual_seed(random_seed)
+        torch.cuda.manual_seed(random_seed)
+        torch.cuda.manual_seed_all(random_seed)
+
         self.fold = fold
         self.mode = mode
         self.fold_list = fold_list
-        self.offtarget = offtarget
+        self.offtarget_mutate = offtarget_mutate
+        self.ontarget_mutate = ontarget_mutate
+        self.atgc = torch.tensor([
+            [1., -1., -1., -1.],
+            [-1., 1., -1., -1.],
+            [-1., -1., 1., -1.],
+            [-1., -1., -1., 1.]], dtype=torch.float32, device=gene.device)
 
         if self.fold_list is not None:
             self.indices = self._select_fold()
@@ -119,19 +129,17 @@ class GeneFeatureDataset(Dataset):
         features = self.features[idx]
         target = self.target[idx]
         
-        if self.offtarget:
-            prob = random.random()
-            
-            if prob < 0.05: # Transform 5% of data to create dummy data with off-target efficiency of 0%
-                mutated_sequence = gene[0, :, :]
+        if self.offtarget_mutate and self.offtarget_mutate > torch.rand(1): # Transform part of data to dummy data with off-target efficiency of 0%
+            o_indices = gene[1, :, :].sum(dim=1) != -4.
+            proportion = 0.4
+            mutate_indices = o_indices & (torch.rand(74, device=o_indices.device) < proportion)
+            gene[0, mutate_indices] = self.atgc[torch.randint(4, (mutate_indices.sum().cpu().numpy().item(),))]
+            target = 1e-4 * torch.ones_like(target)
 
-                proportion = random.uniform(0.2, 1.0)
-                replace_indices = random.sample(range(74), int(proportion * 74))
-
-                for i in replace_indices:
-                    mutated_sequence[i] = torch.tensor(random.choice([[1., -1., -1., -1.], [-1., 1., -1., -1.], [-1., -1., 1., -1.], [-1., -1., -1., 1.]]), dtype=torch.float32, device=gene.device)
-
-                gene[0] = mutated_sequence
-                target = torch.zeros_like(target)
+        if self.ontarget_mutate and self.ontarget_mutate > torch.rand(1): # Mutate nucleotides in non-interactive region of a target DNA
+            x_indices = gene[1, :, :].sum(dim=1) == -4.
+            proportion = 0.2
+            mutate_indices = x_indices & (torch.rand(74, device=x_indices.device) < proportion)
+            gene[0, mutate_indices] = self.atgc[torch.randint(4, (mutate_indices.sum().cpu().numpy().item(),))]
 
         return gene, features, target

@@ -36,9 +36,9 @@ if use_external:
 
     test_idx = y_off > 0.1
 
-    g_test = g_off#[test_idx]
-    x_test = x_off#[test_idx]
-    y_test = y_off#[test_idx]
+    g_test = g_off #[test_idx]
+    x_test = x_off #[test_idx]
+    y_test = y_off #[test_idx]
 
     g_test = torch.tensor(g_test, dtype=torch.float32, device=device)
     x_test = torch.tensor(x_test.to_numpy(), dtype=torch.float32, device=device)
@@ -138,8 +138,8 @@ if use_external:
 else:
     pos_not5 = (off_data['Edit_pos'] != 5)[test_idx]
 
-plot.plot_spearman(preds[pos_not5], y[pos_not5], 'plots/offtarget/{}pos_not5.jpg'.format(ext_name))
-plot.plot_spearman(preds, y, 'plots/offtarget/{}offtarget.jpg'.format(ext_name))
+plot.plot_spearman(preds[pos_not5], y[pos_not5], 'plots/offtarget/{}pos_not5.jpg'.format(ext_name), lim=50)
+plot.plot_spearman(preds, y, 'plots/offtarget/{}offtarget.jpg'.format(ext_name), lim=50)
 
 preds = pd.DataFrame(preds, columns=['Predicted_PE_efficiency'])
 preds = pd.concat([off_data.loc[test_idx].reset_index(drop=True), preds], axis=1)

@@ -114,7 +114,7 @@ for file in file_list:
 
     # SAVE RESULTS
 
-    plot.plot_spearman(preds, y, 'plots/ontarget/' + file[:-4] + '.jpg')
+    plot.plot_spearman(preds, y, 'plots/ontarget/' + file[:-4] + '.jpg', "DeepPrime on-target performance")
     preds = pd.DataFrame(preds, columns=['Predicted_PE_efficiency'])
     preds = pd.concat([test_file.loc[test_idx].reset_index(drop=True), preds], axis=1)
     preds.to_csv('results/ontarget/' + file[:-4] + '.csv', index=False)

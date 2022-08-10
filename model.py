@@ -197,3 +197,24 @@ class ScaledMSELoss(nn.Module):
         mu = torch.minimum(torch.exp(6 * (y-3)) + 1, torch.ones_like(y) * 5) # SQRT-inverse
 
         return torch.mean(mu * (y-pred) ** 2)
+
+
+class OffTargetLoss(nn.Module):
+
+    def __init__(self):
+        super(OffTargetLoss, self).__init__()
+
+        self.factor = [0.25, 1]
+        self.mse = nn.MSELoss(reduction='sum')
+
+    def forward(self, pred, actual):
+        pred = pred.view(-1, 1)
+        y = torch.log1p(actual[:, 0].view(-1, 1))
+        idx = actual[:, -1] == 7
+
+        l1 = self.mse(pred[idx], y[idx]) * self.factor[0]
+        l2 = self.mse(pred[~idx], y[~idx]) * self.factor[1]
+            
+        loss = (l1 + l2) / pred.size(0)
+
+        return loss

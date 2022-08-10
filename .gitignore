@@ -251,4 +251,13 @@ lightning/DeepPE_sweep_lightning.py
 lightning/PL_DeepPE.py
 cas9/DeepSpCas9_finalize.py
 cas9/DeepSpCas9.py
+finetune_validate.py
+offtarget_validate.py
+train_nofeat8.py
+validate.py
+validate_5model_cnn.py
+validate_5model_cnn_nofeat.py
+validate_5model_gru.py
+validate_5model_gru_nofeat.py
 .vscode/settings.json
+
