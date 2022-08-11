@@ -13,7 +13,7 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 # PREPROCESSING
 
-use_external = False # if true, evaluate using KimDS (2020) dataset.
+use_external = True # if true, evaluate using KimDS (2020) dataset.
 
 if use_external:
     ext_name = 'KimDS_'
@@ -142,5 +142,8 @@ plot.plot_spearman(preds[pos_not5], y[pos_not5], 'plots/offtarget/{}pos_not5.jpg
 plot.plot_spearman(preds, y, 'plots/offtarget/{}offtarget.jpg'.format(ext_name), lim=50)
 
 preds = pd.DataFrame(preds, columns=['Predicted_PE_efficiency'])
-preds = pd.concat([off_data.loc[test_idx].reset_index(drop=True), preds], axis=1)
+if use_external:
+    preds = pd.concat([off_data, preds], axis=1)
+else:
+    preds = pd.concat([off_data.loc[test_idx].reset_index(drop=True), preds], axis=1)
 preds.to_csv('results/offtarget/{}offtarget.csv'.format(ext_name), index=False)
