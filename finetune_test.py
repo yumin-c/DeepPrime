@@ -25,9 +25,12 @@ file_list = [
         'DP_variant_DLD1_NRCHPE4max_Opti_220728.csv',
         'DP_variant_A549_PE4max_Opti_220728.csv',
         'DP_variant_293T_PE4max_Opti_220728.csv',
+        'DP_variant_293T_NRCH-PE2max_Opti_220815.csv',
+        'DP_variant_HeLa_PE2max_Opti_220815.csv',
+        'DP_variant_NIH_NRCHPE4max_Opti_220815.csv'
         ]
 
-for file in file_list:
+for file in file_list[-3:]:
 
     test_file = pd.read_csv('data/' + file)
 
@@ -105,7 +108,7 @@ for file in file_list:
 
     # SAVE RESULTS
 
-    plot.plot_spearman(preds, y, 'plots/ontarget_variants/' + file[:-4] + '.jpg', title="Model performance on {} dataset".format(file[:-4]))
+    plot.plot_spearman(preds, y, 'plots/ontarget_variants/' + file[:-4] + '.jpg', title="DeepPrime performance on {} dataset".format(file[:-4]))
     preds = pd.DataFrame(preds, columns=['Predicted_PE_efficiency'])
     preds = pd.concat([test_file.loc[test_idx].reset_index(drop=True), preds], axis=1)
     preds.to_csv('results/ontarget_variants/' + file[:-4] + '.csv', index=False)

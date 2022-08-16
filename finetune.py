@@ -26,9 +26,12 @@ files = [
     'DP_variant_DLD1_NRCHPE4max_Opti_220728.csv',
     'DP_variant_A549_PE4max_Opti_220728.csv',
     'DP_variant_293T_PE4max_Opti_220728.csv',
+    'DP_variant_293T_NRCH-PE2max_Opti_220815.csv',
+    'DP_variant_HeLa_PE2max_Opti_220815.csv',
+    'DP_variant_NIH_NRCHPE4max_Opti_220815.csv'
     ]
 
-for fileidx in range(9):
+for fileidx in range(9, 11):
 
     file = files[fileidx]
 
@@ -52,7 +55,10 @@ for fileidx in range(9):
 
     # NORMALIZATION
 
-    x_train = (train_features - train_features.mean()) / train_features.std() # fit to finetuning data distribution.
+    mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
+    std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
+
+    x_train = (train_features - mean) / std # fit to finetuning data distribution.
     y_train = train_target
     y_train = pd.concat([y_train, train_type], axis=1)
 
@@ -70,12 +76,10 @@ for fileidx in range(9):
     n_layers = 1
     n_models = 20
 
-    if fileidx != 8:
-        continue
     
     if fileidx == 0:
-        learning_rate = 5e-4
-        weight_decay = 0e-2
+        learning_rate = 2e-3
+        weight_decay = 1e-2
         n_epochs = 100
     elif fileidx == 1:
         learning_rate = 1e-3
@@ -85,22 +89,18 @@ for fileidx in range(9):
         learning_rate = 5e-3
         weight_decay = 1e-2
         n_epochs = 100
-        use_scheduler = True
     elif fileidx == 3:
         learning_rate = 1e-2
         weight_decay = 1e-2
         n_epochs = 50
-        use_scheduler = True
     elif fileidx == 4:
         learning_rate = 4e-3
         weight_decay = 1e-2
         n_epochs = 50
-        use_scheduler = True
     elif fileidx == 5:
         learning_rate = 8e-3
         weight_decay = 1e-2
         n_epochs = 50
-        use_scheduler = True
     elif fileidx == 6:
         learning_rate = 1e-3
         weight_decay = 0e-2
@@ -112,6 +112,23 @@ for fileidx in range(9):
     elif fileidx == 8:
         learning_rate = 5e-3
         weight_decay = 1e-2
+        n_epochs = 100
+
+    
+    # 220815 datasets
+    elif fileidx == 9:
+        learning_rate = 5e-3
+        weight_decay = 2e-2
+        n_epochs = 50
+        use_scheduler = True
+    elif fileidx == 10:
+        learning_rate = 1e-2
+        weight_decay = 2e-2
+        n_epochs = 50
+        use_scheduler = True
+    elif fileidx == 11:
+        learning_rate = 2e-3
+        weight_decay = 2e-2
         n_epochs = 100
 
 
@@ -140,7 +157,10 @@ for fileidx in range(9):
 
         criterion = BalancedMSELoss()
         optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=n_epochs//2, T_mult=1, eta_min=learning_rate/100)
 
+        n_iters = len(train_loader)
+        
         pbar = tqdm(range(n_epochs))
         for epoch in pbar:
             train_loss = []
@@ -156,6 +176,7 @@ for fileidx in range(9):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+                if use_scheduler: scheduler.step(epoch + i / n_iters)
 
                 train_loss.append(x.size(0) * loss.detach().cpu().numpy())
                 train_count += x.size(0)
