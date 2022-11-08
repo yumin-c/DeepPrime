@@ -14,12 +14,10 @@ DeepPrime is a deep-learning-based prime editing efficiency prediction tool deve
 
 ## Directory tree
 ```bash
-├── data # PUT DATA HERE
+├── data # PUT .csv files here
 │   ├── genes # folder for preprocessed gene files (.npy)
 │   │   └── ...
-│   ├── ...
-│   ├── DeepPrime_dataset_final_Feat8.csv # main train/test dataset.
-│   └── DeepPrime_Nat_Liu_endo_PE2only_TriAve_220303.csv # external evaluation data.
+│   └── ...
 │
 ├── models
 │   ├── offtarget
@@ -36,24 +34,20 @@ DeepPrime is a deep-learning-based prime editing efficiency prediction tool deve
 │   ├── ontarget
 │   └── ontarget_variants
 │
-│   # BASE MODEL
 ├── model.py
 ├── utils.py
 ├── plot.py
 ├── train.py # full-dataset train without cross validation.
 ├── test.py
-├── validate.py # train code with 5-fold cv.
 │
-│   # FINETUNING (VARIANTS)
+│   # FINETUNING (DeepPrime-FT)
 ├── finetune.py
-├── finetune_validate.py
 ├── finetune_test.py
 │
 │   # OFF-TARGET MODEL
 ├── offtarget_train.py
-├── offtarget_validate.py
 └── offtarget_test.py
 ```
 
 ## Performance
-DeepPrime on/off-target performance is now available in `plots/`.
+DeepPrime performance evaluation result is now available in `plots/`.
