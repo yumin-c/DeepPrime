@@ -1,5 +1,3 @@
-# An file for on-target DeepPE (pre-)training.
-
 import os
 import numpy as np
 import pandas as pd

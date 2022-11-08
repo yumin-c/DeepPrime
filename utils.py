@@ -75,6 +75,7 @@ class GeneFeatureDataset(Dataset):
         fold_list: np.ndarray = None,
         offtarget_mutate: float = 0.,
         ontarget_mutate: float = 0.,
+        subsampling: int = -1,
         random_seed: int = 0,
     ):
         random.seed(random_seed)
@@ -87,6 +88,7 @@ class GeneFeatureDataset(Dataset):
         self.fold_list = fold_list
         self.offtarget_mutate = offtarget_mutate
         self.ontarget_mutate = ontarget_mutate
+        self.subsampling = subsampling
         self.atgc = torch.tensor([
             [1., -1., -1., -1.],
             [-1., 1., -1., -1.],
@@ -117,6 +119,9 @@ class GeneFeatureDataset(Dataset):
         elif self.mode == 'finalizing':
             for i in range(len(self.fold_list)):
                 selected_indices.append(i)
+
+        if self.subsampling > 0:
+            selected_indices = random.sample(selected_indices, self.subsampling)
 
         return selected_indices
         
