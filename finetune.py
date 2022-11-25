@@ -1,3 +1,5 @@
+# Train code for DeepPrime-FT models.
+
 import os
 import numpy as np
 import pandas as pd
@@ -16,22 +18,28 @@ torch.backends.cudnn.benchmark = False
 
 # LOAD & PREPROCESS GENES
 
-files = [
-    'DP_variant_293T_PE2_Conv_220428.csv',
-    'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
-    'DP_variant_293T_PE2max_Opti_220428.csv',
-    'DP_variant_HCT116_PE2_Opti_220428.csv',
-    'DP_variant_MDA_PE2_Opti_220428.csv',
-    'DP_variant_DLD1_PE4max_Opti_220728.csv',
-    'DP_variant_DLD1_NRCHPE4max_Opti_220728.csv',
-    'DP_variant_A549_PE4max_Opti_220728.csv',
-    'DP_variant_293T_PE4max_Opti_220728.csv',
-    'DP_variant_293T_NRCH-PE2max_Opti_220815.csv',
-    'DP_variant_HeLa_PE2max_Opti_220815.csv',
-    'DP_variant_NIH_NRCHPE4max_Opti_220815.csv'
-    ]
+files = ['DP_variant_293T_PE2_Conv_220428.csv',
+         'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
+         'DP_variant_293T_PE2max_Opti_220428.csv',
+         'DP_variant_HCT116_PE2_Opti_220428.csv',
+         'DP_variant_MDA_PE2_Opti_220428.csv',
+         'DP_variant_DLD1_PE4max_Opti_220728.csv',
+         'DP_variant_DLD1_NRCHPE4max_Opti_220728.csv',
+         'DP_variant_A549_PE4max_Opti_220728.csv',
+         'DP_variant_293T_PE4max_Opti_220728.csv',
+         'DP_variant_293T_NRCH-PE2max_Opti_220815.csv',
+         'DP_variant_HeLa_PE2max_Opti_220815.csv',
+         'DP_variant_NIH_NRCHPE4max_Opti_220815.csv',
 
-for fileidx in range(9, 11):
+         'DP_variant_DLD1_PE2max_Opti_221114.csv',
+         'DP_variant_A549_PE4max_epegRNA_Opti_220428.csv',
+         'DP_variant_A549_PE2max_Opti_221114.csv',
+         'DP_variant_A549_PE2max_epegRNA_Opti_220428.csv',
+         'DP_variant_293T_PE4max_epegRNA_Opti_220428.csv',
+         'DP_variant_293T_PE2max_epegRNA_Opti_220428.csv'
+         ]
+
+for fileidx in [13, 14, 17]:
 
     file = files[fileidx]
 
@@ -130,6 +138,39 @@ for fileidx in range(9, 11):
         learning_rate = 2e-3
         weight_decay = 2e-2
         n_epochs = 100
+    
+
+    # 221113 datasets
+    elif fileidx == 12:
+        learning_rate = 2e-3
+        weight_decay = 2e-2
+        n_epochs = 100
+        use_scheduler = False
+    elif fileidx == 13: # RE
+        learning_rate = 1e-2
+        weight_decay = 2e-2
+        n_epochs = 100
+        use_scheduler = True
+    elif fileidx == 14: # RE
+        learning_rate = 1e-2
+        weight_decay = 2e-2
+        n_epochs = 40
+        use_scheduler = True
+    elif fileidx == 15:
+        learning_rate = 2e-3
+        weight_decay = 1e-2
+        n_epochs = 100
+        use_scheduler = False
+    elif fileidx == 16:
+        learning_rate = 5e-3
+        weight_decay = 1e-2
+        n_epochs = 50
+        use_scheduler = False
+    elif fileidx == 17: # RE
+        learning_rate = 1e-2
+        weight_decay = 1e-2
+        n_epochs = 100
+        use_scheduler = True
 
 
     # TRAINING

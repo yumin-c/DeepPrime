@@ -1,4 +1,4 @@
-# Test script for fine-tuned on-target model performance evaluation.
+# Test code for DeepPrime-FT performance evaluation.
 
 import os
 import numpy as np
@@ -15,22 +15,29 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 # PREPROCESSING
 
-file_list = [
-        'DP_variant_293T_PE2_Conv_220428.csv',
-        'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
-        'DP_variant_293T_PE2max_Opti_220428.csv',
-        'DP_variant_HCT116_PE2_Opti_220428.csv',
-        'DP_variant_MDA_PE2_Opti_220428.csv',
-        'DP_variant_DLD1_PE4max_Opti_220728.csv',
-        'DP_variant_DLD1_NRCHPE4max_Opti_220728.csv',
-        'DP_variant_A549_PE4max_Opti_220728.csv',
-        'DP_variant_293T_PE4max_Opti_220728.csv',
-        'DP_variant_293T_NRCH-PE2max_Opti_220815.csv',
-        'DP_variant_HeLa_PE2max_Opti_220815.csv',
-        'DP_variant_NIH_NRCHPE4max_Opti_220815.csv'
-        ]
+file_list = ['DeepPrime_dataset_final_Feat8.csv',
+             'DP_variant_293T_PE2_Conv_220428.csv',
+             'DP_variant_293T_NRCH_PE2_Opti_220428.csv',
+             'DP_variant_293T_PE2max_Opti_220428.csv',
+             'DP_variant_HCT116_PE2_Opti_220428.csv',
+             'DP_variant_MDA_PE2_Opti_220428.csv',
+             'DP_variant_DLD1_PE4max_Opti_220728.csv',
+             'DP_variant_DLD1_NRCHPE4max_Opti_220728.csv',
+             'DP_variant_A549_PE4max_Opti_220728.csv',
+             'DP_variant_293T_PE4max_Opti_220728.csv',
+             'DP_variant_293T_NRCH-PE2max_Opti_220815.csv',
+             'DP_variant_HeLa_PE2max_Opti_220815.csv',
+             'DP_variant_NIH_NRCHPE4max_Opti_220815.csv',
 
-for file in file_list[-3:]:
+             'DP_variant_DLD1_PE2max_Opti_221114.csv',
+             'DP_variant_A549_PE4max_epegRNA_Opti_220428.csv',
+             'DP_variant_A549_PE2max_Opti_221114.csv',
+             'DP_variant_A549_PE2max_epegRNA_Opti_220428.csv',
+             'DP_variant_293T_PE4max_epegRNA_Opti_220428.csv',
+             'DP_variant_293T_PE2max_epegRNA_Opti_220428.csv'
+             ]
+
+for file in file_list[-6:]:
 
     test_file = pd.read_csv('data/' + file)
 

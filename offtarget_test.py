@@ -1,3 +1,5 @@
+# Test code for DeepPrime-Off performance evaluation with 293T-PE2 dataset.
+
 import os
 import numpy as np
 import pandas as pd
@@ -13,7 +15,7 @@ device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 # PREPROCESSING
 
-use_external = True # if true, evaluate using KimDS (2020) dataset.
+use_external = False # if true, evaluate using KimDS (2020) dataset.
 
 if use_external:
     ext_name = 'KimDS_'
@@ -79,7 +81,7 @@ else:
 
 models, preds = [], []
 
-for m in glob('models/offtarget/*.pt'):
+for m in glob('models/offtarget/final_model_*.pt'):
     print(m)
     models.append(m)
 

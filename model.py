@@ -1,3 +1,12 @@
+# Models and losses.
+
+# class GeneInteractionModel: final DeepPrime architecture, which is composed of CNN+GRU / Linear layers.
+# class GRUOnly: model without convolutional layers, which is composed of GRU / Linear layers.
+# class LSTMOnly: GRUOnly model's variant, where GRU module is switched into LSTM.
+# class ConvTransformer: a model which uses CNN+Transformer for sequence processing / Linear layers for biofeature processing.
+# class Transformer: a model which uses Transformer for sequence processing / Linear layers for biofeature processing.
+
+
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
@@ -344,19 +353,29 @@ class ScaledMSELoss(nn.Module):
 
 class OffTargetLoss(nn.Module):
 
-    def __init__(self):
+    def __init__(self, dataset=0):
         super(OffTargetLoss, self).__init__()
 
-        self.factor = [0.25, 1]
+        self.dataset = dataset
+        self.factor = [0.25, 1] if dataset == 0 else [1, 1]
         self.mse = nn.MSELoss(reduction='sum')
+
+    def _scale_mseloss(self, pred, y):
+        mu = torch.minimum(0.00003*(y**3-100*y**2+2700*y)+0.15, torch.ones_like(y))
+
+        return torch.sum(mu * (y-pred)**2)
 
     def forward(self, pred, actual):
         pred = pred.view(-1, 1)
         y = torch.log1p(actual[:, 0].view(-1, 1))
         idx = actual[:, -1] == 7
 
-        l1 = self.mse(pred[idx], y[idx]) * self.factor[0]
-        l2 = self.mse(pred[~idx], y[~idx]) * self.factor[1]
+        if self.dataset==0:
+            l1 = self.mse(pred[idx], y[idx]) * self.factor[0]
+            l2 = self.mse(pred[~idx], y[~idx]) * self.factor[1]
+        elif self.dataset==1:
+            l1 = self._scale_mseloss(pred[idx], y[idx]) * self.factor[0]
+            l2 = self._scale_mseloss(pred[~idx], y[~idx]) * self.factor[1]
             
         loss = (l1 + l2) / pred.size(0)
 
