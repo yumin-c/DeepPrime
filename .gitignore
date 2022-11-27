@@ -227,37 +227,3 @@ cython_debug/
 .ionide
 
 # Support for Project snippet scope
-dataset_optim/DeepPrime_dataset01_read200_withOther.csv
-dataset_optim/DeepPrime_dataset02_read100_withOther.csv
-dataset_optim/DeepPrime_dataset03_read200_OtherX.csv
-dataset_optim/DeepPrime_dataset04_read100_OtherX.csv
-dataset_optim/DeepPrime_dataset05_read200_OtherX_AddFeat.csv
-dataset_optim/g_0.npy
-dataset_optim/g_1.npy
-dataset_optim/g_2.npy
-dataset_optim/g_3.npy
-dataset_optim/g_4.npy
-dataset_optim/optim_cv_log.txt
-experimental/DeepPE_3outputs.py
-experimental/DeepPE_pretrain.py
-experimental/DeepPE_sweep.py
-experimental/DeepPE.ipynb
-experimental/sweep_scale.yaml
-experimental/sweep_transformer.yaml
-experimental/test_.py
-experimental/transformer_finalize.py
-experimental/transformer.py
-lightning/DeepPE_sweep_lightning.py
-lightning/PL_DeepPE.py
-cas9/DeepSpCas9_finalize.py
-cas9/DeepSpCas9.py
-finetune_validate.py
-offtarget_validate.py
-train_nofeat8.py
-validate.py
-validate_5model_cnn.py
-validate_5model_cnn_nofeat.py
-validate_5model_gru.py
-validate_5model_gru_nofeat.py
-.vscode/settings.json
-
