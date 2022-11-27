@@ -20,14 +20,13 @@ torch.backends.cudnn.benchmark = False
 
 fileidx = 0
 
-files = ['DeepOff_dataset_220604.csv',
-         'DeepPrime-Off_dataset_293T_PE4max_221115.csv']
+files = ['DeepOff_dataset_220604.csv']
 
-for directory in ['data/genes'] + ['models/offtarget_variants/' + x[:-4] for x in files]:
+for directory in ['data/genes', 'models/offtarget']:
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-for fileidx in range(2):
+for fileidx in range(1):
 
     file = files[fileidx]
 
@@ -77,12 +76,6 @@ for fileidx in range(2):
         weight_decay = 1e-2
         n_epochs = 5
         T_0 = 5
-        T_mult = 1
-    elif fileidx == 1:
-        learning_rate = 2e-2
-        weight_decay = 1e-2
-        n_epochs = 8
-        T_0 = 8
         T_mult = 1
 
 
@@ -137,4 +130,3 @@ for fileidx in range(2):
             pbar.set_description('M {:02} | {:.4}'.format(m, train_loss))
         
         if fileidx==0: torch.save(model.state_dict(), 'models/offtarget/final_model_{}.pt'.format(random_seed))
-        elif fileidx==1: torch.save(model.state_dict(), 'models/offtarget_variants/{}/final_model_{}.pt'.format(file[:-4], random_seed))
