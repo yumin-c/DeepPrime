@@ -7,8 +7,8 @@ import torch
 from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from utils import GeneFeatureDataset, seq_concat, select_cols
-from model import GeneInteractionModel, BalancedMSELoss
+from utils.data import GeneFeatureDataset, seq_concat, select_cols
+from utils.model import GeneInteractionModel, BalancedMSELoss
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
@@ -24,7 +24,7 @@ for directory in ['data/genes', 'models/ontarget']:
 
 train_file = pd.read_csv('data/DeepPrime_dataset_final_Feat8.csv')
 if not os.path.isfile('data/mean.csv'):
-    import preprocess
+    import utils.preprocess as preprocess
 mean = pd.read_csv('data/mean.csv', header=None, index_col=0, squeeze=True)
 std = pd.read_csv('data/std.csv', header=None, index_col=0, squeeze=True)
 

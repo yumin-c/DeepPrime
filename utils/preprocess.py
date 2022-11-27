@@ -1,7 +1,7 @@
 # Save mean and standard deviation of training set.
 
 import pandas as pd
-from utils import select_cols
+from utils.data import select_cols
 
 train_file = pd.read_csv('data/DeepPrime_dataset_final_Feat8.csv')
 
