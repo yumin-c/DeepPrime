@@ -8,7 +8,7 @@ DeepPrime is a deep-learning-based prime editing efficiency prediction tool deve
 │   │   └── ...
 │   └── ...
 │
-├── models # Trained models are stored here
+├── models # Trained models will be stored here
 │   ├── ontarget
 │   ├── ontarget_variants
 │   ├── offtarget
@@ -17,7 +17,7 @@ DeepPrime is a deep-learning-based prime editing efficiency prediction tool deve
 ├── utils # Utilities for..
 │   ├── data.py # Data preprocessing & Dataset
 │   ├── model.py # Models and losses
-│   └── preprocess.py # Save reference mean and standard deviation for normalization.
+│   └── preprocess.py # Reference mean and standard deviation for normalization.
 │
 ├── train_base.py
 ├── train_ft.py
