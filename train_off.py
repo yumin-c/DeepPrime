@@ -93,7 +93,6 @@ for fileidx in range(1):
         model = GeneInteractionModel(hidden_size=hidden_size, num_layers=n_layers, dropout=0.2).to(device)
         
         if fileidx == 0: model.load_state_dict(torch.load('models/ontarget/final/model_{}.pt'.format(random_seed)))
-        elif fileidx == 1: model.load_state_dict(torch.load('models/ontarget_variants/DP_variant_293T_PE4max_Opti_220728/final_model_{}.pt'.format(random_seed)))
 
         train_set = GeneFeatureDataset(g_off, x_off, y_off, fold_list=off_fold, offtarget_mutate=offtarget_mutate, ontarget_mutate=ontarget_mutate, random_seed=random_seed)
         train_loader = DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
