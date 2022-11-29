@@ -8,7 +8,8 @@ from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils.data import GeneFeatureDataset, seq_concat, select_cols
-from utils.model import GeneInteractionModel, BalancedMSELoss
+from utils.model import GeneInteractionModel
+from utils.loss import BalancedMSELoss
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
